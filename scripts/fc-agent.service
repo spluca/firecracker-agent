@@ -1,27 +1,46 @@
 [Unit]
 Description=Firecracker Agent - gRPC VM Management Service
 Documentation=https://github.com/apardo/firecracker-agent
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=root
 Group=root
 
-ExecStart=/usr/local/bin/fc-agent --config /etc/fc-agent/agent.yaml
+# Start the agent with configuration file
+ExecStart=/usr/bin/fc-agent --config /etc/firecracker-agent/agent.yaml
 
 # Restart policy
-Restart=always
-RestartSec=5
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Working directory
+WorkingDirectory=/var/lib/firecracker
 
 # Resource limits
 LimitNOFILE=65536
-LimitNPROC=4096
+LimitNPROC=8192
+LimitMEMLOCK=infinity
 
-# Security
+# Capabilities needed for TAP device and bridge management
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+
+# Security hardening
+NoNewPrivileges=false
 ProtectHome=yes
 ProtectSystem=strict
-ReadWritePaths=/srv/firecracker /var/log
+ReadWritePaths=/var/lib/firecracker /var/log/firecracker-agent /run
+PrivateTmp=yes
+
+# Allow access to /dev/kvm and /dev/net/tun
+DeviceAllow=/dev/kvm rw
+DeviceAllow=/dev/net/tun rw
+DevicePolicy=closed
 
 # Logging
 StandardOutput=journal

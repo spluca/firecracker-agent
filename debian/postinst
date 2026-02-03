@@ -1,0 +1,43 @@
+#!/bin/sh
+set -e
+
+# Create firecracker user and group if they don't exist
+if ! getent group firecracker > /dev/null 2>&1; then
+    addgroup --system firecracker
+fi
+
+if ! getent passwd firecracker > /dev/null 2>&1; then
+    adduser --system --ingroup firecracker --home /var/lib/firecracker \
+            --no-create-home --gecos "Firecracker Agent" firecracker
+fi
+
+# Set ownership and permissions
+chown -R firecracker:firecracker /var/lib/firecracker
+chown -R firecracker:firecracker /var/log/firecracker-agent
+chown root:firecracker /etc/firecracker-agent
+chmod 750 /etc/firecracker-agent
+chmod 640 /etc/firecracker-agent/agent.yaml
+
+# Enable kernel modules if needed
+modprobe -a tun br_netfilter || true
+
+# Enable IP forwarding
+if [ -f /etc/sysctl.d/99-firecracker-agent.conf ]; then
+    sysctl -p /etc/sysctl.d/99-firecracker-agent.conf || true
+else
+    cat > /etc/sysctl.d/99-firecracker-agent.conf <<EOF
+# Firecracker Agent - Enable IP forwarding
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+EOF
+    sysctl -p /etc/sysctl.d/99-firecracker-agent.conf || true
+fi
+
+# Reload systemd daemon
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload || true
+fi
+
+#DEBHELPER#
+
+exit 0

@@ -1,0 +1,39 @@
+Source: firecracker-agent
+Section: admin
+Priority: optional
+Maintainer: Antonio Pardo <apardo@spluca.org>
+Build-Depends: debhelper-compat (= 13),
+               golang-go (>= 2:1.20~),
+               dh-golang,
+               protobuf-compiler,
+               git
+Standards-Version: 4.6.2
+Homepage: https://github.com/apardo/firecracker-agent
+Vcs-Git: https://github.com/apardo/firecracker-agent.git
+Vcs-Browser: https://github.com/apardo/firecracker-agent
+
+Package: firecracker-agent
+Architecture: amd64
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         firecracker (>= 1.0.0) | firecracker-bin,
+         qemu-utils,
+         iproute2,
+         iptables,
+         bridge-utils
+Recommends: linux-image-generic (>= 5.10)
+Suggests: firecracker-agent-doc
+Description: gRPC service for managing Firecracker microVMs
+ Firecracker Agent is a high-performance gRPC service that provides
+ programmatic control over Firecracker microVMs. It manages the complete
+ VM lifecycle including:
+ .
+  * VM creation, starting, stopping, and deletion
+  * Network configuration (TAP devices and bridge setup)
+  * Storage management with copy-on-write overlay support
+  * Process lifecycle management
+  * Health monitoring and metrics
+ .
+ The agent communicates with Firecracker via Unix sockets and exposes
+ a gRPC API for remote management, making it ideal for orchestration
+ systems and cloud platforms.

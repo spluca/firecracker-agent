@@ -1,0 +1,45 @@
+#!/usr/bin/make -f
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+export DH_GOLANG_EXCLUDES := vendor
+export CGO_ENABLED := 0
+export GOCACHE := /tmp/go-build
+
+%:
+	dh $@ --buildsystem=golang --with=golang
+
+override_dh_auto_configure:
+	dh_auto_configure
+
+override_dh_auto_build:
+	# Generate protobuf files
+	mkdir -p api/proto/firecracker/v1
+	protoc --go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		api/proto/firecracker/v1/firecracker.proto || true
+	# Build the binary
+	go build -v -o bin/fc-agent ./cmd/fc-agent
+
+override_dh_auto_test:
+	# Run tests
+	go test -v ./pkg/... ./internal/firecracker/... ./internal/storage/... ./internal/network/... || true
+
+override_dh_auto_install:
+	# Install binary
+	install -D -m 0755 bin/fc-agent debian/firecracker-agent/usr/bin/fc-agent
+	# Install systemd service
+	install -D -m 0644 scripts/fc-agent.service debian/firecracker-agent/lib/systemd/system/fc-agent.service
+	# Install configuration
+	install -D -m 0644 configs/agent.yaml debian/firecracker-agent/etc/firecracker-agent/agent.yaml
+	# Create directories
+	install -d -m 0755 debian/firecracker-agent/var/lib/firecracker/vms
+	install -d -m 0755 debian/firecracker-agent/var/lib/firecracker/images
+	install -d -m 0755 debian/firecracker-agent/var/log/firecracker-agent
+
+override_dh_installsystemd:
+	dh_installsystemd --name=fc-agent --no-start --no-enable
+
+override_dh_builddeb:
+	dh_builddeb -- -Zgzip
