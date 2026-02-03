@@ -19,7 +19,7 @@ func TestNewManager(t *testing.T) {
 	tapPrefix := "fc-tap"
 	log := createTestLogger()
 
-	manager := NewManager(bridgeName, tapPrefix, log)
+	manager := NewManager(bridgeName, "172.16.0.1/24", tapPrefix, log)
 
 	assert.NotNil(t, manager)
 	assert.Equal(t, bridgeName, manager.bridgeName)
@@ -28,7 +28,7 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestManager_GenerateMAC(t *testing.T) {
-	manager := NewManager("fc-br0", "fc-tap", createTestLogger())
+	manager := NewManager("fc-br0", "172.16.0.1/24", "fc-tap", createTestLogger())
 
 	tests := []struct {
 		name string
@@ -66,7 +66,7 @@ func TestManager_GenerateMAC(t *testing.T) {
 }
 
 func TestManager_GenerateMAC_Uniqueness(t *testing.T) {
-	manager := NewManager("fc-br0", "fc-tap", createTestLogger())
+	manager := NewManager("fc-br0", "172.16.0.1/24", "fc-tap", createTestLogger())
 
 	// Generate MACs for different VM IDs and ensure they're different
 	vmIDs := []string{
@@ -86,7 +86,7 @@ func TestManager_GenerateMAC_Uniqueness(t *testing.T) {
 }
 
 func TestManager_GenerateMAC_Determinism(t *testing.T) {
-	manager := NewManager("fc-br0", "fc-tap", createTestLogger())
+	manager := NewManager("fc-br0", "172.16.0.1/24", "fc-tap", createTestLogger())
 
 	vmID := "vm-test-12345"
 
@@ -100,7 +100,7 @@ func TestManager_GenerateMAC_Determinism(t *testing.T) {
 }
 
 func TestManager_CreateTAPDevice_NameGeneration(t *testing.T) {
-	manager := NewManager("fc-br0", "fc-tap", createTestLogger())
+	manager := NewManager("fc-br0", "172.16.0.1/24", "fc-tap", createTestLogger())
 
 	tests := []struct {
 		name            string
@@ -139,7 +139,7 @@ func TestManager_CreateTAPDevice_Integration(t *testing.T) {
 		t.Skip("Skipping test: requires root privileges")
 	}
 
-	manager := NewManager("fc-br0-test", "fc-tap-test", createTestLogger())
+	manager := NewManager("fc-br0-test", "172.16.0.1/24", "fc-tap-test", createTestLogger())
 
 	// Ensure bridge exists
 	err := manager.EnsureBridgeExists()
@@ -167,7 +167,7 @@ func TestManager_DeleteTAPDevice_Integration(t *testing.T) {
 		t.Skip("Skipping test: requires root privileges")
 	}
 
-	manager := NewManager("fc-br0-test", "fc-tap-test", createTestLogger())
+	manager := NewManager("fc-br0-test", "172.16.0.1/24", "fc-tap-test", createTestLogger())
 
 	t.Run("delete non-existent TAP device succeeds", func(t *testing.T) {
 		err := manager.DeleteTAPDevice("nonexistent-tap-device")
@@ -183,7 +183,7 @@ func TestManager_EnsureBridgeExists_Integration(t *testing.T) {
 		t.Skip("Skipping test: requires root privileges")
 	}
 
-	manager := NewManager("fc-br0-test-unique", "fc-tap-test", createTestLogger())
+	manager := NewManager("fc-br0-test-unique", "172.16.0.1/24", "fc-tap-test", createTestLogger())
 
 	t.Run("successful bridge creation", func(t *testing.T) {
 		err := manager.EnsureBridgeExists()
@@ -205,7 +205,7 @@ func TestManager_ConfigureIPTables_Integration(t *testing.T) {
 		t.Skip("Skipping test: requires root privileges")
 	}
 
-	manager := NewManager("fc-br0-test", "fc-tap-test", createTestLogger())
+	manager := NewManager("fc-br0-test", "172.16.0.1/24", "fc-tap-test", createTestLogger())
 
 	t.Run("configure iptables rules", func(t *testing.T) {
 		tapName := "test-tap0"
@@ -219,7 +219,7 @@ func TestManager_ConfigureIPTables_Integration(t *testing.T) {
 }
 
 func TestManager_RemoveIPTablesRules(t *testing.T) {
-	manager := NewManager("fc-br0", "fc-tap", createTestLogger())
+	manager := NewManager("fc-br0", "172.16.0.1/24", "fc-tap", createTestLogger())
 
 	t.Run("remove iptables rules", func(t *testing.T) {
 		tapName := "test-tap0"
@@ -263,7 +263,7 @@ func TestManager_TAPNameFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			manager := NewManager("br0", tt.tapPrefix, createTestLogger())
+			manager := NewManager("br0", "172.16.0.1/24", tt.tapPrefix, createTestLogger())
 
 			// Simulate TAP name generation logic
 			tapName := manager.tapPrefix + "-" + tt.vmID[:8]
@@ -274,7 +274,7 @@ func TestManager_TAPNameFormat(t *testing.T) {
 }
 
 func TestManager_MACAddressFormat(t *testing.T) {
-	manager := NewManager("fc-br0", "fc-tap", createTestLogger())
+	manager := NewManager("fc-br0", "172.16.0.1/24", "fc-tap", createTestLogger())
 
 	vmID := "test-vm-12345"
 	mac := manager.GenerateMAC(vmID)
@@ -299,7 +299,7 @@ func TestManager_MACAddressFormat(t *testing.T) {
 }
 
 func TestManager_ErrorHandling(t *testing.T) {
-	manager := NewManager("fc-br0", "fc-tap", createTestLogger())
+	manager := NewManager("fc-br0", "172.16.0.1/24", "fc-tap", createTestLogger())
 
 	t.Run("generate MAC with empty VM ID", func(t *testing.T) {
 		mac := manager.GenerateMAC("")
@@ -324,7 +324,7 @@ func isRoot() bool {
 // Benchmark tests
 
 func BenchmarkManager_GenerateMAC(b *testing.B) {
-	manager := NewManager("fc-br0", "fc-tap", createTestLogger())
+	manager := NewManager("fc-br0", "172.16.0.1/24", "fc-tap", createTestLogger())
 	vmID := "test-vm-12345678"
 
 	b.ResetTimer()
@@ -334,7 +334,7 @@ func BenchmarkManager_GenerateMAC(b *testing.B) {
 }
 
 func BenchmarkManager_GenerateMAC_Different(b *testing.B) {
-	manager := NewManager("fc-br0", "fc-tap", createTestLogger())
+	manager := NewManager("fc-br0", "172.16.0.1/24", "fc-tap", createTestLogger())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

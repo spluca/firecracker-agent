@@ -11,14 +11,16 @@ import (
 // Manager handles network configuration for VMs
 type Manager struct {
 	bridgeName string
+	bridgeIP   string
 	tapPrefix  string
 	log        *logrus.Logger
 }
 
 // NewManager creates a new network manager
-func NewManager(bridgeName, tapPrefix string, log *logrus.Logger) *Manager {
+func NewManager(bridgeName, bridgeIP, tapPrefix string, log *logrus.Logger) *Manager {
 	return &Manager{
 		bridgeName: bridgeName,
+		bridgeIP:   bridgeIP,
 		tapPrefix:  tapPrefix,
 		log:        log,
 	}
@@ -82,16 +84,15 @@ func (m *Manager) EnsureBridgeExists() error {
 
 	// Check if bridge exists
 	cmd := exec.Command("ip", "link", "show", m.bridgeName)
-	if err := cmd.Run(); err == nil {
+	if err := cmd.Run(); err != nil {
+		// Create bridge
+		m.log.WithField("bridge", m.bridgeName).Info("Creating bridge")
+		cmd = exec.Command("ip", "link", "add", "name", m.bridgeName, "type", "bridge")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to create bridge: %w (output: %s)", err, string(output))
+		}
+	} else {
 		m.log.WithField("bridge", m.bridgeName).Info("Bridge already exists")
-		return nil
-	}
-
-	// Create bridge
-	m.log.WithField("bridge", m.bridgeName).Info("Creating bridge")
-	cmd = exec.Command("ip", "link", "add", "name", m.bridgeName, "type", "bridge")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to create bridge: %w (output: %s)", err, string(output))
 	}
 
 	// Bring up bridge
@@ -100,7 +101,28 @@ func (m *Manager) EnsureBridgeExists() error {
 		return fmt.Errorf("failed to bring up bridge: %w (output: %s)", err, string(output))
 	}
 
-	m.log.WithField("bridge", m.bridgeName).Info("Bridge created successfully")
+	// Assign IP address if configured
+	if m.bridgeIP != "" {
+		// Check if IP is already assigned
+		cmd = exec.Command("ip", "addr", "show", m.bridgeName)
+		output, err := cmd.CombinedOutput()
+		if err == nil && !strings.Contains(string(output), m.bridgeIP) {
+			m.log.WithFields(logrus.Fields{
+				"bridge": m.bridgeName,
+				"ip":     m.bridgeIP,
+			}).Info("Assigning IP to bridge")
+
+			cmd = exec.Command("ip", "addr", "add", m.bridgeIP, "dev", m.bridgeName)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				// Ignore "File exists" error which means IP is already assigned but maybe not detected by string match
+				if !strings.Contains(string(output), "File exists") {
+					return fmt.Errorf("failed to assign IP to bridge: %w (output: %s)", err, string(output))
+				}
+			}
+		}
+	}
+
+	m.log.WithField("bridge", m.bridgeName).Info("Bridge created/configured successfully")
 	return nil
 }
 

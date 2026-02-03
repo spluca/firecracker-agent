@@ -37,7 +37,7 @@ func NewManager(cfg *config.Config, log *logrus.Logger) (*Manager, error) {
 	log.Info("Initializing Firecracker manager")
 
 	// Create network manager
-	networkMgr := network.NewManager(cfg.Network.BridgeName, cfg.Network.TapPrefix, log)
+	networkMgr := network.NewManager(cfg.Network.BridgeName, cfg.Network.BridgeIP, cfg.Network.TapPrefix, log)
 
 	// Ensure bridge exists
 	if err := networkMgr.EnsureBridgeExists(); err != nil {

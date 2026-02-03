@@ -36,6 +36,7 @@ type FirecrackerConfig struct {
 type NetworkConfig struct {
 	BridgeName string `yaml:"bridge_name"`
 	TapPrefix  string `yaml:"tap_prefix"`
+	BridgeIP   string `yaml:"bridge_ip"`
 }
 
 type StorageConfig struct {
@@ -83,6 +84,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Network.TapPrefix == "" {
 		cfg.Network.TapPrefix = "vmtap"
+	}
+	if cfg.Network.BridgeIP == "" {
+		cfg.Network.BridgeIP = "172.16.0.1/24"
 	}
 	if cfg.Storage.VMsDir == "" {
 		cfg.Storage.VMsDir = "/srv/firecracker/vms"
