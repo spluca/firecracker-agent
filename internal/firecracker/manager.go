@@ -3,6 +3,7 @@ package firecracker
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -179,10 +180,26 @@ func (m *Manager) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VM
 	// Configure Firecracker via API
 	client := process.Client
 
+	// Determine Gateway IP (Bridge IP) - remove CIDR for gateway
+	gatewayIP := m.cfg.Network.BridgeIP
+	if idx := strings.Index(gatewayIP, "/"); idx != -1 {
+		gatewayIP = gatewayIP[:idx]
+	}
+
+	// Build boot arguments
+	bootArgs := "console=ttyS0 reboot=k panic=1 pci=off"
+	if req.IpAddress != "" {
+		// Format: ip=<client-ip>:<server-ip>:<gw-ip>:<netmask>:<hostname>:<device>:<autoconf>
+		// We use bridge IP as server and gateway
+		// Assuming /24 netmask (255.255.255.0) for simplicity as it matches default bridge config
+		bootArgs = fmt.Sprintf("%s ip=%s:%s:%s:255.255.255.0::eth0:off",
+			bootArgs, req.IpAddress, gatewayIP, gatewayIP)
+	}
+
 	// Set boot source
 	bootSource := BootSource{
 		KernelImagePath: vmStorage.KernelPath,
-		BootArgs:        "console=ttyS0 reboot=k panic=1 pci=off",
+		BootArgs:        bootArgs,
 	}
 	if err := client.SetBootSource(ctx, bootSource); err != nil {
 		process.Kill()
