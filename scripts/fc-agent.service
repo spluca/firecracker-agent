@@ -1,0 +1,32 @@
+[Unit]
+Description=Firecracker Agent - gRPC VM Management Service
+Documentation=https://github.com/apardo/firecracker-agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+ExecStart=/usr/local/bin/fc-agent --config /etc/fc-agent/agent.yaml
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Security
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/firecracker /var/log
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fc-agent
+
+[Install]
+WantedBy=multi-user.target

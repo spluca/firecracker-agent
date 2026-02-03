@@ -1,0 +1,26 @@
+server:
+  host: "0.0.0.0"
+  port: 50051
+
+firecracker:
+  binary_path: "/usr/bin/firecracker"
+  jailer_path: "/usr/bin/jailer"
+  # Update these paths to your actual kernel and rootfs
+  kernel_path: "/var/lib/firecracker/images/vmlinux.bin"
+  rootfs_path: "/var/lib/firecracker/images/rootfs.ext4"
+
+network:
+  bridge_name: "fcbr0"  # Bridge name for VM networking
+  tap_prefix: "fctap"   # Prefix for TAP devices
+
+storage:
+  vms_dir: "/var/lib/firecracker/vms"
+  use_overlay: true  # Use overlay FS for copy-on-write
+
+monitoring:
+  enabled: true
+  metrics_port: 9090
+
+log:
+  level: "info"  # debug, info, warn, error
+  format: "json"  # json or text

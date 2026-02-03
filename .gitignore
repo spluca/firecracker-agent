@@ -1,0 +1,40 @@
+# Binaries
+/fc-agent
+*.exe
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+
+# Test coverage
+*.out
+coverage.html
+
+# Go workspace
+go.work
+go.work.sum
+
+# Generated files
+api/proto/**/*.pb.go
+api/proto/**/*_grpc.pb.go
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Config overrides
+configs/agent.local.yaml
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+/tmp/

@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+package firecracker.v1;
+
+option go_package = "github.com/apardo/firecracker-agent/api/proto/firecracker/v1";
+
+// FirecrackerAgent service manages Firecracker microVMs
+service FirecrackerAgent {
+  // VM Lifecycle operations
+  rpc CreateVM(CreateVMRequest) returns (CreateVMResponse);
+  rpc StartVM(StartVMRequest) returns (StartVMResponse);
+  rpc StopVM(StopVMRequest) returns (StopVMResponse);
+  rpc DeleteVM(DeleteVMRequest) returns (DeleteVMResponse);
+  rpc GetVM(GetVMRequest) returns (GetVMResponse);
+  rpc ListVMs(ListVMsRequest) returns (ListVMsResponse);
+  
+  // Streaming
+  rpc WatchVMEvents(WatchVMEventsRequest) returns (stream VMEvent);
+  
+  // Host Management
+  rpc GetHostInfo(GetHostInfoRequest) returns (GetHostInfoResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// CreateVM
+message CreateVMRequest {
+  string vm_id = 1;
+  int32 vcpu_count = 2;
+  int32 memory_mb = 3;
+  string ip_address = 4;
+  string kernel_path = 5;
+  string rootfs_path = 6;
+  map<string, string> metadata = 7;
+}
+
+message CreateVMResponse {
+  string vm_id = 1;
+  VMState state = 2;
+  string socket_path = 3;
+  int64 created_at = 4;
+  string error_message = 5;
+}
+
+// StartVM
+message StartVMRequest {
+  string vm_id = 1;
+}
+
+message StartVMResponse {
+  string vm_id = 1;
+  VMState state = 2;
+  string error_message = 3;
+}
+
+// StopVM
+message StopVMRequest {
+  string vm_id = 1;
+  bool force = 2;
+}
+
+message StopVMResponse {
+  string vm_id = 1;
+  VMState state = 2;
+  string error_message = 3;
+}
+
+// DeleteVM
+message DeleteVMRequest {
+  string vm_id = 1;
+}
+
+message DeleteVMResponse {
+  string vm_id = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+// GetVM
+message GetVMRequest {
+  string vm_id = 1;
+}
+
+message GetVMResponse {
+  VMInfo vm = 1;
+}
+
+// ListVMs
+message ListVMsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListVMsResponse {
+  repeated VMInfo vms = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// WatchVMEvents
+message WatchVMEventsRequest {
+  string vm_id = 1; // empty for all VMs
+}
+
+message VMEvent {
+  string vm_id = 1;
+  VMState state = 2;
+  string message = 3;
+  int64 timestamp = 4;
+  EventType type = 5;
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_CREATED = 1;
+  EVENT_TYPE_STARTED = 2;
+  EVENT_TYPE_STOPPED = 3;
+  EVENT_TYPE_DELETED = 4;
+  EVENT_TYPE_ERROR = 5;
+}
+
+// GetHostInfo
+message GetHostInfoRequest {}
+
+message GetHostInfoResponse {
+  string hostname = 1;
+  int32 total_cpus = 2;
+  int64 total_memory_mb = 3;
+  int64 available_memory_mb = 4;
+  int32 running_vms = 5;
+  float cpu_usage = 6;
+  string version = 7;
+}
+
+// HealthCheck
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string version = 2;
+  int64 uptime_seconds = 3;
+}
+
+// Common types
+enum VMState {
+  VM_STATE_UNSPECIFIED = 0;
+  VM_STATE_CREATING = 1;
+  VM_STATE_RUNNING = 2;
+  VM_STATE_STOPPING = 3;
+  VM_STATE_STOPPED = 4;
+  VM_STATE_DELETING = 5;
+  VM_STATE_ERROR = 6;
+}
+
+message VMInfo {
+  string vm_id = 1;
+  VMState state = 2;
+  int32 vcpu_count = 3;
+  int32 memory_mb = 4;
+  string ip_address = 5;
+  string socket_path = 6;
+  int64 created_at = 7;
+  map<string, string> metadata = 8;
+}

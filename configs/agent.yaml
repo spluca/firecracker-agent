@@ -1,0 +1,25 @@
+server:
+  host: "0.0.0.0"
+  port: 50051
+
+firecracker:
+  binary_path: "/usr/bin/firecracker"
+  jailer_path: "/usr/bin/jailer"
+  kernel_path: "/var/lib/firecracker/images/vmlinux.bin"
+  rootfs_path: "/var/lib/firecracker/images/rootfs.ext4"
+
+network:
+  bridge_name: "fcbr0"
+  tap_prefix: "fctap"
+
+storage:
+  vms_dir: "/var/lib/firecracker/vms"
+  use_overlay: true
+
+monitoring:
+  enabled: true
+  metrics_port: 9090
+
+log:
+  level: "info"
+  format: "json"
