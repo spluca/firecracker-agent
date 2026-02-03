@@ -84,34 +84,96 @@ func (m *Manager) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VM
 		rootfsPath = m.cfg.Firecracker.RootfsPath
 	}
 
-	// Prepare storage
-	vmStorage, err := m.storageManager.PrepareVMStorage(req.VmId, kernelPath, rootfsPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare storage: %w", err)
-	}
+	var vmStorage *storage.VMStorage
+	var jailPaths *storage.JailPaths
+	var process *VMProcess
+	var tapDevice string
+	var macAddr string
+	var err error
 
-	// Create TAP device
-	tapDevice, err := m.networkManager.CreateTAPDevice(req.VmId)
-	if err != nil {
-		m.storageManager.CleanupVMStorage(req.VmId)
-		return nil, fmt.Errorf("failed to create TAP device: %w", err)
-	}
+	// Check if we should use jailer (enabled by default for security)
+	useJailer := m.cfg.Firecracker.UseJailer
 
-	// Generate MAC address
-	macAddr := m.networkManager.GenerateMAC(req.VmId)
+	if useJailer {
+		m.log.WithField("vm_id", req.VmId).Info("Using Firecracker jailer for security isolation")
 
-	// Start Firecracker process
-	process, err := StartFirecrackerProcess(
-		ctx,
-		m.cfg.Firecracker.BinaryPath,
-		vmStorage.SocketPath,
-		vmStorage.LogPath,
-		m.log,
-	)
-	if err != nil {
-		m.networkManager.DeleteTAPDevice(tapDevice)
-		m.storageManager.CleanupVMStorage(req.VmId)
-		return nil, fmt.Errorf("failed to start Firecracker process: %w", err)
+		// Setup jail directory
+		jailPaths, err = m.storageManager.SetupJailDirectory(req.VmId, kernelPath, rootfsPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup jail directory: %w", err)
+		}
+
+		// Update jail paths with firecracker binary path
+		jailPaths.FirecrackerBinary = m.cfg.Firecracker.BinaryPath
+
+		// Create TAP device
+		tapDevice, err = m.networkManager.CreateTAPDevice(req.VmId)
+		if err != nil {
+			m.storageManager.CleanupJail(req.VmId)
+			m.storageManager.CleanupVMStorage(req.VmId)
+			return nil, fmt.Errorf("failed to create TAP device: %w", err)
+		}
+
+		// Generate MAC address
+		macAddr = m.networkManager.GenerateMAC(req.VmId)
+
+		// Start jailed Firecracker process
+		process, err = StartJailedProcess(
+			ctx,
+			m.cfg.Firecracker.JailerPath,
+			req.VmId,
+			jailPaths,
+			m.cfg.Firecracker.JailUID,
+			m.cfg.Firecracker.JailGID,
+			m.log,
+		)
+		if err != nil {
+			m.networkManager.DeleteTAPDevice(tapDevice)
+			m.storageManager.CleanupJail(req.VmId)
+			m.storageManager.CleanupVMStorage(req.VmId)
+			return nil, fmt.Errorf("failed to start jailed Firecracker process: %w", err)
+		}
+
+		// Use jail paths for configuration
+		vmStorage = &storage.VMStorage{
+			VMDir:      jailPaths.JailDir,
+			RootfsPath: jailPaths.RootfsPath,
+			KernelPath: jailPaths.KernelPath,
+			SocketPath: jailPaths.SocketPath,
+			LogPath:    jailPaths.LogPath,
+		}
+	} else {
+		m.log.WithField("vm_id", req.VmId).Warn("Running Firecracker without jailer (security risk)")
+
+		// Prepare storage (traditional mode without jailer)
+		vmStorage, err = m.storageManager.PrepareVMStorage(req.VmId, kernelPath, rootfsPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare storage: %w", err)
+		}
+
+		// Create TAP device
+		tapDevice, err = m.networkManager.CreateTAPDevice(req.VmId)
+		if err != nil {
+			m.storageManager.CleanupVMStorage(req.VmId)
+			return nil, fmt.Errorf("failed to create TAP device: %w", err)
+		}
+
+		// Generate MAC address
+		macAddr = m.networkManager.GenerateMAC(req.VmId)
+
+		// Start Firecracker process directly
+		process, err = StartFirecrackerProcess(
+			ctx,
+			m.cfg.Firecracker.BinaryPath,
+			vmStorage.SocketPath,
+			vmStorage.LogPath,
+			m.log,
+		)
+		if err != nil {
+			m.networkManager.DeleteTAPDevice(tapDevice)
+			m.storageManager.CleanupVMStorage(req.VmId)
+			return nil, fmt.Errorf("failed to start Firecracker process: %w", err)
+		}
 	}
 
 	// Configure Firecracker via API
@@ -133,7 +195,7 @@ func (m *Manager) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VM
 	machineConfig := MachineConfig{
 		VcpuCount:  req.VcpuCount,
 		MemSizeMib: req.MemoryMb,
-		HtEnabled:  false,
+		Smt:        false, // Disable SMT/Hyper-Threading
 	}
 	if err := client.SetMachineConfig(ctx, machineConfig); err != nil {
 		process.Kill()
@@ -294,6 +356,13 @@ func (m *Manager) DeleteVM(ctx context.Context, vmID string) error {
 	if vm.TAPDevice != "" {
 		if err := m.networkManager.DeleteTAPDevice(vm.TAPDevice); err != nil {
 			m.log.WithError(err).Warn("Failed to delete TAP device")
+		}
+	}
+
+	// Cleanup jail directory if using jailer
+	if m.cfg.Firecracker.UseJailer {
+		if err := m.storageManager.CleanupJail(vmID); err != nil {
+			m.log.WithError(err).Warn("Failed to cleanup jail directory")
 		}
 	}
 

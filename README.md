@@ -227,7 +227,36 @@ This agent is designed to work with [mikrom-go](https://github.com/apardo/mikrom
 
 See [Integration Guide](docs/integration.md) for details.
 
-## 🔒 Security
+## ❓ Troubleshooting
+236: 
+237: ### Systemd Service Issues
+238: 
+239: When running as a systemd service, the Firecracker jailer requires specific permissions to create the chroot environment and device nodes.
+240: 
+241: If you encounter `Permission denied` or `Operation not permitted` errors:
+242: 
+243: 1. **Capabilities**: Ensure the service has `CAP_DAC_OVERRIDE`, `CAP_DAC_READ_SEARCH` (for file access) and `CAP_KILL` (for process monitoring).
+244: 2. **Device Nodes**: The jailer uses `mknod` to create devices inside the jail. Ensure `DeviceAllow` includes `rwm` (read, write, mknod) permissions for:
+245:    - `/dev/kvm` (and `char-10:232`)
+246:    - `/dev/net/tun` (and `char-10:200`)
+247:    - `/dev/userfaultfd` (and `char-10:257`)
+248: 
+249: Sample `fc-agent.service` configuration:
+250: 
+251: ```ini
+252: [Service]
+253: CapabilityBoundingSet=... CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_KILL
+254: AmbientCapabilities=... CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_KILL
+255: 
+256: DeviceAllow=/dev/kvm rwm
+257: DeviceAllow=char-10:232 rwm
+258: DeviceAllow=/dev/net/tun rwm
+259: DeviceAllow=char-10:200 rwm
+260: DeviceAllow=/dev/userfaultfd rwm
+261: DeviceAllow=char-10:257 rwm
+262: ```
+263: 
+264: ## 🔒 Security
 
 - VMs run with Firecracker jailer for additional isolation
 - Network segregation via TAP devices and bridges

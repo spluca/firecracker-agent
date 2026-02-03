@@ -285,7 +285,7 @@ Para preguntas o issues:
 
 Una vez implementada la integración completa con Firecracker:
 
-| Operación | Ansible (actual) | fc-agent (objetivo) | Mejora |
+| Operación | Estado Actual | Estado Objetivo | Mejora |
 |-----------|------------------|---------------------|--------|
 | CreateVM  | 3-5s | **300-500ms** | 85-90% |
 | StartVM   | 2-3s | **150-300ms** | 90% |

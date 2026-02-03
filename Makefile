@@ -38,11 +38,8 @@ clean: ## Clean build artifacts
 	rm -f $(PROTO_DIR)/*.pb.go
 
 install: build ## Install binary to /usr/local/bin
-	sudo cp $(BUILD_DIR)/$(BINARY_NAME) /usr/local/bin/
-	sudo mkdir -p /etc/fc-agent
-	sudo cp configs/agent.yaml /etc/fc-agent/
-	sudo cp scripts/fc-agent.service /etc/systemd/system/
-	sudo systemctl daemon-reload
+	@echo "Installing Firecracker Agent with Jailer support..."
+	@./scripts/install.sh
 
 run: build ## Run the agent
 	$(BUILD_DIR)/$(BINARY_NAME) --config configs/agent.yaml

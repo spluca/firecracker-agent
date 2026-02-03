@@ -34,6 +34,16 @@ type VMStorage struct {
 	LogPath    string
 }
 
+// JailPaths represents paths for a jailed VM
+type JailPaths struct {
+	JailDir           string // Base chroot directory
+	FirecrackerBinary string // Path to firecracker binary
+	KernelPath        string // Path to kernel
+	RootfsPath        string // Path to rootfs
+	SocketPath        string // Path to socket
+	LogPath           string // Path to logs
+}
+
 // PrepareVMStorage prepares storage directories and files for a VM
 func (m *Manager) PrepareVMStorage(vmID, kernelPath, rootfsPath string) (*VMStorage, error) {
 	vmDir := filepath.Join(m.vmsDir, vmID)
@@ -160,6 +170,69 @@ func (m *Manager) EnsureVMsDir() error {
 
 	if err := os.MkdirAll(m.vmsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create VMs directory: %w", err)
+	}
+
+	return nil
+}
+
+// SetupJailDirectory creates the chroot jail structure for a VM
+// For the native firecracker jailer, we only prepare the base directory
+// The jailer creates: <chroot-base-dir>/firecracker/<vm_id>/root/
+// We return paths pointing to the source files (kernel, rootfs) which will be
+// copied into the jail AFTER the jailer creates the chroot structure
+func (m *Manager) SetupJailDirectory(vmID, kernelPath, rootfsPath string) (*JailPaths, error) {
+	vmDir := filepath.Join(m.vmsDir, vmID)
+
+	m.log.WithFields(logrus.Fields{
+		"vm_id":  vmID,
+		"vm_dir": vmDir,
+	}).Info("Setting up jail directory")
+
+	// Create VM directory (this will be the base for jailer operations)
+	if err := os.MkdirAll(vmDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create VM directory: %w", err)
+	}
+
+	// For native jailer:
+	// - JailDir is the VM directory (jailer uses parent as chroot-base-dir)
+	// - KernelPath and RootfsPath point to source files (will be copied to jail later)
+	// - SocketPath will be set after jailer creates the chroot
+	jailPaths := &JailPaths{
+		JailDir:           vmDir,      // jailer uses parent of this as chroot-base-dir
+		FirecrackerBinary: "",         // Set by manager
+		KernelPath:        kernelPath, // Source kernel path (will be copied to jail)
+		RootfsPath:        rootfsPath, // Source rootfs path (will be copied to jail)
+		SocketPath:        "",         // Will be set after jailer creates chroot
+		LogPath:           filepath.Join(vmDir, "firecracker.log"),
+	}
+
+	m.log.WithFields(logrus.Fields{
+		"vm_id":      vmID,
+		"vm_dir":     vmDir,
+		"kernel_src": kernelPath,
+		"rootfs_src": rootfsPath,
+	}).Debug("Jail paths configured for native jailer")
+
+	return jailPaths, nil
+}
+
+// CleanupJail removes the jail directory created by the native firecracker jailer
+// The jailer creates: <vms_dir>/firecracker/<vm_id>/
+func (m *Manager) CleanupJail(vmID string) error {
+	// For native jailer: <vms_dir>/firecracker/<vm_id>/
+	jailDir := filepath.Join(m.vmsDir, "firecracker", vmID)
+
+	m.log.WithFields(logrus.Fields{
+		"vm_id":    vmID,
+		"jail_dir": jailDir,
+	}).Info("Cleaning up jail directory")
+
+	if err := os.RemoveAll(jailDir); err != nil {
+		// Don't fail if directory doesn't exist
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to remove jail directory: %w", err)
 	}
 
 	return nil

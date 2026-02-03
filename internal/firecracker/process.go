@@ -11,6 +11,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ProcessMode indicates how the Firecracker process is being run
+type ProcessMode int
+
+const (
+	ModeDirect ProcessMode = iota // Direct execution without jailer
+	ModeJailer                    // Running with Firecracker jailer
+)
+
 // VMProcess represents a running Firecracker process
 type VMProcess struct {
 	PID        int
@@ -19,6 +27,8 @@ type VMProcess struct {
 	LogFile    *os.File
 	Client     *Client
 	log        *logrus.Logger
+	Mode       ProcessMode // NEW: Track if running with jailer
+	JailPath   string      // NEW: Path to jail directory (if using jailer)
 }
 
 // StartFirecrackerProcess starts a new Firecracker process
@@ -39,7 +49,7 @@ func StartFirecrackerProcess(ctx context.Context, binaryPath, socketPath, logPat
 	}
 
 	// Create Firecracker command
-	cmd := exec.CommandContext(ctx, binaryPath,
+	cmd := exec.CommandContext(context.Background(), binaryPath,
 		"--api-sock", socketPath,
 		"--log-path", logPath,
 		"--level", "Info",
@@ -65,9 +75,22 @@ func StartFirecrackerProcess(ctx context.Context, binaryPath, socketPath, logPat
 		"socket": socketPath,
 	}).Info("Firecracker process started")
 
+	// Start background goroutine to wait for process exit
+	// This ensures the process is reaped even if it exits unexpectedly
+	// (crash, panic, or normal termination)
+	go func() {
+		err := cmd.Wait()
+		if err != nil {
+			log.WithError(err).WithField("pid", cmd.Process.Pid).Warn("Firecracker process exited with error")
+		} else {
+			log.WithField("pid", cmd.Process.Pid).Info("Firecracker process exited cleanly")
+		}
+	}()
+
 	// Wait for socket to be ready
 	if err := waitForSocket(socketPath, 5*time.Second); err != nil {
 		cmd.Process.Kill()
+		// Note: background goroutine will reap the process
 		logFile.Close()
 		return nil, fmt.Errorf("socket not ready: %w", err)
 	}
@@ -93,21 +116,20 @@ func (p *VMProcess) Stop() error {
 		// Send SIGTERM for graceful shutdown
 		if err := p.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
 			p.log.WithError(err).Warn("Failed to send SIGTERM")
-		}
+		} else {
+			// Wait for graceful shutdown
+			time.Sleep(2 * time.Second)
 
-		// Wait for process to exit (with timeout)
-		done := make(chan error, 1)
-		go func() {
-			done <- p.Cmd.Wait()
-		}()
-
-		select {
-		case <-done:
-			p.log.WithField("pid", p.PID).Info("Firecracker process stopped gracefully")
-		case <-time.After(5 * time.Second):
-			// Force kill if it doesn't stop
-			p.log.WithField("pid", p.PID).Warn("Forcing kill of Firecracker process")
-			p.Cmd.Process.Kill()
+			// Check if still running
+			if p.IsRunning() {
+				// Force kill if it doesn't stop
+				p.log.WithField("pid", p.PID).Warn("Forcing kill of Firecracker process")
+				p.Cmd.Process.Kill()
+				// Give background goroutine time to reap
+				time.Sleep(200 * time.Millisecond)
+			} else {
+				p.log.WithField("pid", p.PID).Info("Firecracker process stopped gracefully")
+			}
 		}
 	}
 
@@ -130,6 +152,9 @@ func (p *VMProcess) Kill() error {
 		if err := p.Cmd.Process.Kill(); err != nil {
 			return fmt.Errorf("failed to kill process: %w", err)
 		}
+
+		// Give the background goroutine a moment to reap the process
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	// Close log file

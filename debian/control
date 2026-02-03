@@ -12,7 +12,6 @@ Package: firecracker-agent
 Architecture: amd64
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         firecracker (>= 1.0.0) | firecracker-bin,
          qemu-utils,
          iproute2,
          iptables,

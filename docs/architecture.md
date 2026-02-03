@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Firecracker Agent is a gRPC service that manages Firecracker microVMs with ultra-fast startup times (< 500ms). It provides a high-performance alternative to Ansible for VM lifecycle management.
+The Firecracker Agent is a gRPC service that manages Firecracker microVMs with ultra-fast startup times (< 500ms). It provides high-performance VM lifecycle management through a native gRPC interface.
 
 ## Components
 

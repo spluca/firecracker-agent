@@ -157,7 +157,7 @@ func TestClient_SetMachineConfig(t *testing.T) {
 			machineConfig: MachineConfig{
 				VcpuCount:  2,
 				MemSizeMib: 512,
-				HtEnabled:  false,
+				Smt:        false,
 			},
 			mockStatusCode: http.StatusNoContent,
 			expectError:    false,
@@ -167,7 +167,7 @@ func TestClient_SetMachineConfig(t *testing.T) {
 			machineConfig: MachineConfig{
 				VcpuCount:  8,
 				MemSizeMib: 4096,
-				HtEnabled:  true,
+				Smt:        true,
 			},
 			mockStatusCode: http.StatusNoContent,
 			expectError:    false,
@@ -197,7 +197,7 @@ func TestClient_SetMachineConfig(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tt.machineConfig.VcpuCount, receivedConfig.VcpuCount)
 				assert.Equal(t, tt.machineConfig.MemSizeMib, receivedConfig.MemSizeMib)
-				assert.Equal(t, tt.machineConfig.HtEnabled, receivedConfig.HtEnabled)
+				assert.Equal(t, tt.machineConfig.Smt, receivedConfig.Smt)
 
 				w.WriteHeader(tt.mockStatusCode)
 			})

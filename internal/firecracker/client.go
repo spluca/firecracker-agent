@@ -51,7 +51,7 @@ type Drive struct {
 type MachineConfig struct {
 	VcpuCount  int32 `json:"vcpu_count"`
 	MemSizeMib int32 `json:"mem_size_mib"`
-	HtEnabled  bool  `json:"ht_enabled"`
+	Smt        bool  `json:"smt,omitempty"` // Simultaneous Multi-Threading (formerly ht_enabled)
 }
 
 // NetworkInterface represents a network interface configuration
