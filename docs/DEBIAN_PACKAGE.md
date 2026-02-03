@@ -6,9 +6,9 @@ This guide explains how to build and install the firecracker-agent Debian packag
 
 ### System Requirements
 
-- **Operating System**: Debian 11+ or Ubuntu 20.04+
+- **Operating System**: Debian Trixie (Debian 13 / testing)
 - **Architecture**: amd64 (x86_64)
-- **Kernel**: Linux 5.10+ (for Firecracker support)
+- **Kernel**: Linux 6.0+ (for Firecracker support)
 - **Privileges**: Root or sudo access required
 
 ### Required Packages

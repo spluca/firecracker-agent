@@ -1,4 +1,4 @@
-firecracker-agent (0.1.0-1) unstable; urgency=medium
+firecracker-agent (0.1.0-1) trixie; urgency=medium
 
   * Initial release
   * Implement gRPC server for Firecracker VM management

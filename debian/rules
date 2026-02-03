@@ -3,28 +3,33 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
-export DH_GOLANG_EXCLUDES := vendor
 export CGO_ENABLED := 0
 export GOCACHE := /tmp/go-build
+export GOPATH := $(CURDIR)/go
 
 %:
-	dh $@ --buildsystem=golang --with=golang
+	dh $@
 
-override_dh_auto_configure:
-	dh_auto_configure
+override_dh_auto_clean:
+	dh_auto_clean
+	chmod -R u+w $(GOPATH) 2>/dev/null || true
+	rm -rf $(GOPATH) || true
+	rm -rf bin
 
 override_dh_auto_build:
-	# Generate protobuf files
+	# Generate protobuf files first
 	mkdir -p api/proto/firecracker/v1
-	protoc --go_out=. --go_opt=paths=source_relative \
+	export PATH="$$PATH:$(go env GOPATH)/bin" && \
+		protoc --go_out=. --go_opt=paths=source_relative \
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		api/proto/firecracker/v1/firecracker.proto || true
-	# Build the binary
-	go build -v -o bin/fc-agent ./cmd/fc-agent
+		api/proto/firecracker/v1/firecracker.proto
+	# Build the binary with system Go
+	mkdir -p bin
+	go build -v -ldflags="-s -w" -o bin/fc-agent ./cmd/fc-agent
 
 override_dh_auto_test:
-	# Run tests
-	go test -v ./pkg/... ./internal/firecracker/... ./internal/storage/... ./internal/network/... || true
+	# Skip tests during package build
+	@echo "Skipping tests (run separately with: make test)"
 
 override_dh_auto_install:
 	# Install binary

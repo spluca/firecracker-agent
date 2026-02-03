@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== Building Firecracker Agent Debian Package ==="
+echo "=== Building Firecracker Agent Debian Package for Debian Trixie ==="
 
 # Check if we're in the right directory
 if [ ! -f "go.mod" ] || [ ! -d "debian" ]; then
@@ -10,7 +10,7 @@ if [ ! -f "go.mod" ] || [ ! -d "debian" ]; then
 fi
 
 # Check for required tools
-REQUIRED_TOOLS="dpkg-buildpackage debhelper go protoc"
+REQUIRED_TOOLS="dpkg-buildpackage dh go"
 for tool in $REQUIRED_TOOLS; do
     if ! command -v $tool &> /dev/null; then
         echo "Error: Required tool '$tool' not found"
@@ -18,6 +18,11 @@ for tool in $REQUIRED_TOOLS; do
         exit 1
     fi
 done
+
+# protoc is optional - will be checked during build if needed
+if ! command -v protoc &> /dev/null; then
+    echo "Warning: protoc not found - protobuf generation may fail during build"
+fi
 
 # Clean previous builds
 echo "Cleaning previous builds..."

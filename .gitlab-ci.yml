@@ -1,0 +1,242 @@
+# GitLab CI/CD Pipeline for Firecracker Agent
+# Builds, tests, and packages the firecracker-agent service
+# Target: Debian Trixie (Debian 13 / testing)
+
+image: golang:1.25
+
+variables:
+  # Go build settings
+  CGO_ENABLED: "0"
+  GOOS: linux
+  GOARCH: amd64
+  
+  # Package version
+  PACKAGE_VERSION: "0.1.0"
+  PACKAGE_REVISION: "1"
+  
+  # Project settings
+  GO_PROJECT: github.com/apardo/firecracker-agent
+  
+  # Artifact paths
+  BINARY_NAME: fc-agent
+  DEB_PACKAGE_NAME: firecracker-agent_${PACKAGE_VERSION}-${PACKAGE_REVISION}_amd64.deb
+
+# Cache Go modules between jobs
+cache:
+  paths:
+    - .cache/go-build
+    - go/pkg/mod
+
+stages:
+  - lint
+  - test
+  - build
+  - package
+
+# ==================== Stage: Lint ====================
+
+lint:format:
+  stage: lint
+  script:
+    - echo "Checking Go formatting..."
+    - gofmt -l . | tee /tmp/gofmt.out
+    - test ! -s /tmp/gofmt.out || (echo "Files need formatting" && exit 1)
+    - echo "✓ All files are properly formatted"
+  allow_failure: false
+  only:
+    - merge_requests
+    - main
+    - develop
+
+lint:vet:
+  stage: lint
+  script:
+    - echo "Running go vet..."
+    - go vet ./...
+    - echo "✓ No issues found by go vet"
+  allow_failure: false
+  only:
+    - merge_requests
+    - main
+    - develop
+
+lint:staticcheck:
+  stage: lint
+  before_script:
+    - go install honnef.co/go/tools/cmd/staticcheck@latest
+  script:
+    - echo "Running staticcheck..."
+    - staticcheck ./...
+    - echo "✓ No issues found by staticcheck"
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# ==================== Stage: Test ====================
+
+test:unit:
+  stage: test
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq qemu-utils
+    - go mod download
+  script:
+    - echo "Running unit tests with race detection..."
+    - go test -v -race -coverprofile=coverage.out ./...
+    - echo "Generating coverage report..."
+    - go tool cover -func=coverage.out | tail -1
+    - go tool cover -html=coverage.out -o coverage.html
+  coverage: '/total:.*?(\d+\.\d+)%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.out
+    paths:
+      - coverage.out
+      - coverage.html
+    expire_in: 30 days
+  only:
+    - merge_requests
+    - main
+    - develop
+
+test:integration:
+  stage: test
+  image: golang:1.25
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq qemu-utils iproute2 iptables bridge-utils
+    - go mod download
+  script:
+    - echo "Running integration tests..."
+    - go test -v -tags=integration ./...
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# ==================== Stage: Build ====================
+
+build:protobuf:
+  stage: build
+  image: golang:1.25
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq protobuf-compiler
+    - go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+    - go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+    - export PATH="$PATH:$(go env GOPATH)/bin"
+  script:
+    - echo "Generating protobuf files..."
+    - mkdir -p api/proto/firecracker/v1
+    - protoc --go_out=. --go_opt=paths=source_relative \
+        --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+        api/proto/firecracker/v1/firecracker.proto
+    - echo "✓ Protobuf files generated"
+  artifacts:
+    paths:
+      - api/proto/firecracker/v1/*.pb.go
+    expire_in: 1 hour
+  only:
+    - merge_requests
+    - main
+    - develop
+    - tags
+
+build:binary:
+  stage: build
+  dependencies:
+    - build:protobuf
+  before_script:
+    - go mod download
+  script:
+    - echo "Building firecracker-agent binary..."
+    - mkdir -p bin
+    - go build -v -ldflags="-s -w -X main.Version=${PACKAGE_VERSION} -X main.BuildTime=$(date -u '+%Y-%m-%d_%H:%M:%S')" -o bin/${BINARY_NAME} ./cmd/fc-agent
+    - echo "✓ Binary built successfully"
+    - ls -lh bin/${BINARY_NAME}
+    - file bin/${BINARY_NAME}
+    - bin/${BINARY_NAME} --version || echo "Version info not implemented"
+  artifacts:
+    paths:
+      - bin/${BINARY_NAME}
+    expire_in: 7 days
+  only:
+    - merge_requests
+    - main
+    - develop
+    - tags
+
+# ==================== Stage: Package ====================
+
+package:debian:
+  stage: package
+  image: debian:trixie
+  dependencies:
+    - build:protobuf
+  before_script:
+    - echo "Installing build dependencies..."
+    - apt-get update -qq
+    - apt-get install -y -qq 
+        build-essential 
+        debhelper 
+        dh-golang 
+        golang-go 
+        protobuf-compiler 
+        git 
+        devscripts 
+        lintian
+    - go version
+  script:
+    - echo "Building Debian package ${DEB_PACKAGE_NAME}..."
+    
+    # Set package version in changelog if needed
+    - |
+      if ! grep -q "${PACKAGE_VERSION}-${PACKAGE_REVISION}" debian/changelog; then
+        echo "Updating changelog version..."
+        sed -i "s/0\.1\.0-1/${PACKAGE_VERSION}-${PACKAGE_REVISION}/g" debian/changelog
+      fi
+    
+    # Download Go dependencies
+    - go mod download
+    
+    # Build the package
+    - dpkg-buildpackage -us -uc -b
+    
+    # Move package to predictable location
+    - mkdir -p packages
+    - mv ../*.deb packages/ || true
+    - mv ../*.buildinfo packages/ || true
+    - mv ../*.changes packages/ || true
+    
+    # Show package info
+    - echo "✓ Debian package built successfully"
+    - ls -lh packages/
+    - dpkg-deb --info packages/*.deb
+    - dpkg-deb --contents packages/*.deb
+    
+    # Run lintian checks
+    - echo "Running lintian checks..."
+    - lintian packages/*.deb || echo "Lintian found some issues (non-fatal)"
+    
+  artifacts:
+    name: "firecracker-agent-debian-${CI_COMMIT_REF_NAME}"
+    paths:
+      - packages/*.deb
+      - packages/*.buildinfo
+      - packages/*.changes
+    expire_in: 30 days
+  only:
+    - main
+    - develop
+    - tags
+
