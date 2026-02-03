@@ -1,0 +1,3 @@
+d50fb5ab44a075b91ec65e8a75c45ea6  lib/systemd/system/fc-agent.service
+5288980d3cb87d11469681534561066e  usr/bin/fc-agent
+1b06bebde383e1b5dc34f9909ab301e6  usr/share/doc/firecracker-agent/changelog.Debian.gz

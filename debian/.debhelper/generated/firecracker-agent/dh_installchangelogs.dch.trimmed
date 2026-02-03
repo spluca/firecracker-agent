@@ -1,0 +1,15 @@
+firecracker-agent (0.1.0-1) trixie; urgency=medium
+
+  * Initial release
+  * Implement gRPC server for Firecracker VM management
+  * Add Firecracker API client with Unix socket communication
+  * Add VM process lifecycle management (start, stop, kill)
+  * Add network manager for TAP devices and bridge configuration
+  * Add storage manager with overlay filesystem support (qcow2)
+  * Add comprehensive test suite with 100+ test cases
+  * Add configuration management with YAML support
+  * Add structured logging with logrus
+  * Add systemd service integration
+  * Add complete documentation
+
+ -- Antonio Pardo <apardo@spluca.org>  Tue, 03 Feb 2026 08:00:00 +0100

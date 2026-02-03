@@ -1,0 +1,64 @@
+[Unit]
+Description=Firecracker Agent - gRPC VM Management Service
+Documentation=https://github.com/apardo/firecracker-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Start the agent with configuration file
+ExecStart=/usr/bin/fc-agent --config /etc/firecracker-agent/agent.yaml
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Working directory
+WorkingDirectory=/var/lib/firecracker
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=8192
+LimitMEMLOCK=infinity
+
+# Capabilities needed for jailer operation:
+# - CAP_NET_ADMIN: Create TAP devices, configure bridge
+# - CAP_NET_RAW: Raw socket access  
+# - CAP_SYS_ADMIN: Mount operations, namespaces
+# - CAP_SYS_CHROOT: Create chroot jail
+# - CAP_SETUID/CAP_SETGID: Drop privileges to jail uid/gid
+# - CAP_MKNOD: Create device nodes in chroot
+# - CAP_CHOWN: Change file ownership (required by jailer)
+# - CAP_FOWNER: Bypass permission checks on owned files
+# - CAP_DAC_OVERRIDE: Bypass file read/write/execute permission checks
+# - CAP_DAC_READ_SEARCH: Bypass file read permission checks
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID CAP_MKNOD CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_KILL
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID CAP_MKNOD CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_KILL 
+
+# Security hardening (relaxed for jailer requirements)
+NoNewPrivileges=false
+ProtectHome=no
+ProtectSystem=no
+PrivateTmp=no
+
+# Allow access to /dev/kvm and /dev/net/tun
+DeviceAllow=/dev/kvm rwm
+DeviceAllow=char-10:232 rwm
+DeviceAllow=/dev/net/tun rwm
+DeviceAllow=char-10:200 rwm
+DeviceAllow=/dev/userfaultfd rwm
+DeviceAllow=char-10:257 rwm
+DevicePolicy=closed
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fc-agent
+
+[Install]
+WantedBy=multi-user.target

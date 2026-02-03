@@ -1,0 +1,37 @@
+#!/bin/sh
+set -e
+
+# Remove user and group only if purging
+if [ "$1" = "purge" ]; then
+  # Remove logs and data
+  rm -rf /var/log/firecracker-agent
+  rm -rf /var/lib/firecracker/vms/*
+
+  # Remove sysctl config
+  rm -f /etc/sysctl.d/99-firecracker-agent.conf
+
+  # Remove user and group
+  if getent passwd firecracker >/dev/null 2>&1; then
+    deluser --quiet firecracker || true
+  fi
+
+  if getent group firecracker >/dev/null 2>&1; then
+    delgroup --quiet firecracker || true
+  fi
+fi
+
+# Automatically added by dh_installsystemd/13.29
+if [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
+	systemctl --system daemon-reload >/dev/null || true
+fi
+# End automatically added section
+# Automatically added by dh_installsystemd/13.29
+if [ "$1" = "purge" ]; then
+	if [ -x "/usr/bin/deb-systemd-helper" ]; then
+		deb-systemd-helper purge 'fc-agent.service' >/dev/null || true
+	fi
+fi
+# End automatically added section
+
+
+exit 0

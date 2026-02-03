@@ -1,0 +1,68 @@
+#!/bin/sh
+set -e
+
+# Create firecracker user and group if they don't exist
+if ! getent group firecracker >/dev/null 2>&1; then
+  addgroup --system firecracker
+fi
+
+if ! getent passwd firecracker >/dev/null 2>&1; then
+  adduser --system --ingroup firecracker --home /var/lib/firecracker \
+    --no-create-home --gecos "Firecracker Agent" firecracker
+fi
+
+# Set ownership and permissions
+mkdir -p /var/lib/firecracker/vms
+mkdir -p /var/lib/firecracker/images
+
+chown -R root:root /var/lib/firecracker
+chmod -R 755 /var/lib/firecracker
+
+chown root:firecracker /etc/firecracker-agent
+chmod 750 /etc/firecracker-agent
+chown root:firecracker /etc/firecracker-agent/agent.yaml
+chmod 640 /etc/firecracker-agent/agent.yaml
+
+# Add firecracker user to kvm group
+adduser firecracker kvm
+
+# Enable kernel modules if needed
+modprobe -a tun br_netfilter || true
+
+# Enable IP forwarding
+if [ -f /etc/sysctl.d/99-firecracker-agent.conf ]; then
+  sysctl -p /etc/sysctl.d/99-firecracker-agent.conf || true
+else
+  cat >/etc/sysctl.d/99-firecracker-agent.conf <<EOF
+# Firecracker Agent - Enable IP forwarding
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+EOF
+  sysctl -p /etc/sysctl.d/99-firecracker-agent.conf || true
+fi
+
+# Reload systemd daemon
+if [ -d /run/systemd/system ]; then
+  systemctl daemon-reload || true
+fi
+
+# Automatically added by dh_installsystemd/13.29
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+	if deb-systemd-helper debian-installed 'fc-agent.service'; then
+		# The following line should be removed in trixie or trixie+1
+		deb-systemd-helper unmask 'fc-agent.service' >/dev/null || true
+
+		if deb-systemd-helper --quiet was-enabled 'fc-agent.service'; then
+			# Create new symlinks, if any.
+			deb-systemd-helper enable 'fc-agent.service' >/dev/null || true
+		fi
+	fi
+
+	# Update the statefile to add new symlinks (if any), which need to be cleaned
+	# up on purge. Also remove old symlinks.
+	deb-systemd-helper update-state 'fc-agent.service' >/dev/null || true
+fi
+# End automatically added section
+
+
+exit 0
