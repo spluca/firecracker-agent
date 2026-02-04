@@ -1,6 +1,6 @@
 [Unit]
 Description=Firecracker Agent - gRPC VM Management Service
-Documentation=https://github.com/apardo/firecracker-agent
+Documentation=https://github.com/spluca/firecracker-agent
 After=network-online.target
 Wants=network-online.target
 

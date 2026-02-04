@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"time"
 
-	pb "github.com/apardo/firecracker-agent/api/proto/firecracker/v1"
+	pb "github.com/spluca/firecracker-agent/api/proto/firecracker/v1"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 	"google.golang.org/grpc/codes"

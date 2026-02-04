@@ -34,6 +34,7 @@ make build
 ```
 
 This will:
+
 - Generate protobuf/gRPC code
 - Compile the binary to `bin/fc-agent`
 
@@ -135,6 +136,7 @@ grpcurl -plaintext localhost:50051 firecracker.v1.FirecrackerAgent/WatchVMEvents
 Prometheus metrics are exposed at `http://localhost:9090/metrics`
 
 Available metrics:
+
 - `firecracker_vms_created_total` - Total VMs created
 - `firecracker_vms_running` - Currently running VMs
 - `firecracker_vm_operation_duration_seconds` - Operation durations
@@ -197,6 +199,7 @@ make help
 ```
 
 Available commands:
+
 - `build` - Build the binary
 - `test` - Run tests
 - `run` - Run the agent
@@ -223,39 +226,40 @@ docker run -p 50051:50051 -p 9090:9090 firecracker-agent
 
 ## 🤝 Integration with mikrom-go
 
-This agent is designed to work with [mikrom-go](https://github.com/apardo/mikrom-go) API.
+This agent is designed to work with [mikrom-go](https://github.com/spluca/mikrom) API.
 
 See [Integration Guide](docs/integration.md) for details.
 
 ## ❓ Troubleshooting
-236: 
+
+236:
 237: ### Systemd Service Issues
-238: 
+238:
 239: When running as a systemd service, the Firecracker jailer requires specific permissions to create the chroot environment and device nodes.
-240: 
+240:
 241: If you encounter `Permission denied` or `Operation not permitted` errors:
-242: 
+242:
 243: 1. **Capabilities**: Ensure the service has `CAP_DAC_OVERRIDE`, `CAP_DAC_READ_SEARCH` (for file access) and `CAP_KILL` (for process monitoring).
 244: 2. **Device Nodes**: The jailer uses `mknod` to create devices inside the jail. Ensure `DeviceAllow` includes `rwm` (read, write, mknod) permissions for:
 245:    - `/dev/kvm` (and `char-10:232`)
 246:    - `/dev/net/tun` (and `char-10:200`)
 247:    - `/dev/userfaultfd` (and `char-10:257`)
-248: 
+248:
 249: Sample `fc-agent.service` configuration:
-250: 
+250:
 251: ```ini
 252: [Service]
 253: CapabilityBoundingSet=... CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_KILL
 254: AmbientCapabilities=... CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_KILL
-255: 
+255:
 256: DeviceAllow=/dev/kvm rwm
 257: DeviceAllow=char-10:232 rwm
 258: DeviceAllow=/dev/net/tun rwm
 259: DeviceAllow=char-10:200 rwm
 260: DeviceAllow=/dev/userfaultfd rwm
 261: DeviceAllow=char-10:257 rwm
-262: ```
-263: 
+262:```
+263:
 264: ## 🔒 Security
 
 - VMs run with Firecracker jailer for additional isolation
@@ -268,7 +272,7 @@ MIT License - See [LICENSE](LICENSE) file
 
 ## 👥 Authors
 
-- Antonio Pardo - [@apardo](https://git.spluca.org/apardo)
+- Antonio Pardo - [@apardo](https://github.com/antpard)
 
 ## 🙏 Acknowledgments
 

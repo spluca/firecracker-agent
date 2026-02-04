@@ -182,7 +182,7 @@ After installing the package, you need to:
 sudo apt-get install -y build-essential debhelper golang-go protobuf-compiler git
 
 # Clone repository
-git clone https://github.com/apardo/firecracker-agent.git
+git clone https://github.com/spluca/firecracker-agent.git
 cd firecracker-agent
 
 # Build package

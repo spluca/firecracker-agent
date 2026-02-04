@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/apardo/firecracker-agent/api/proto/firecracker/v1"
-	"github.com/apardo/firecracker-agent/internal/firecracker"
-	"github.com/apardo/firecracker-agent/pkg/config"
+	pb "github.com/spluca/firecracker-agent/api/proto/firecracker/v1"
+	"github.com/spluca/firecracker-agent/internal/firecracker"
+	"github.com/spluca/firecracker-agent/pkg/config"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )

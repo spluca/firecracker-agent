@@ -277,7 +277,7 @@ resp, _ := client.CreateVM(ctx, &pb.CreateVMRequest{...})
 Para preguntas o issues:
 - **Documentación**: Ver `docs/` directory
 - **Issues**: GitHub issues
-- **Email**: apardo@example.com
+- **Email**: spluca@example.com
 
 ---
 

@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/apardo/firecracker-agent/internal/storage"
+	"github.com/spluca/firecracker-agent/internal/storage"
 	"github.com/sirupsen/logrus"
 )
 

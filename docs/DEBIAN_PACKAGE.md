@@ -41,7 +41,7 @@ These will be installed automatically with the package:
 
 ```bash
 cd /usr/src
-git clone https://github.com/apardo/firecracker-agent.git
+git clone https://github.com/spluca/firecracker-agent.git
 cd firecracker-agent
 ```
 
@@ -52,6 +52,7 @@ cd firecracker-agent
 ```
 
 This script will:
+
 - Check for required tools
 - Generate protobuf files
 - Download Go dependencies
@@ -226,8 +227,8 @@ sudo tail -f /var/log/firecracker-agent/fc-agent.log
 # Test gRPC connection (requires grpcurl)
 grpcurl -plaintext localhost:50051 list
 
-# Or use the mikrom-go client
-# (from the mikrom-go project)
+# Or use the mikrom client
+# (from the mikrom project)
 ```
 
 ## Service Management
@@ -258,16 +259,19 @@ systemctl status fc-agent
 ### Service Won't Start
 
 1. Check logs:
+
    ```bash
    sudo journalctl -u fc-agent -n 50
    ```
 
 2. Verify configuration:
+
    ```bash
    sudo fc-agent --config /etc/firecracker-agent/agent.yaml --validate
    ```
 
 3. Check permissions:
+
    ```bash
    ls -la /etc/firecracker-agent/
    ls -la /var/lib/firecracker/
@@ -276,16 +280,19 @@ systemctl status fc-agent
 ### Network Issues
 
 1. Verify bridge exists:
+
    ```bash
    ip link show fc-br0
    ```
 
 2. Check IP forwarding:
+
    ```bash
    sysctl net.ipv4.ip_forward
    ```
 
 3. Verify iptables rules:
+
    ```bash
    sudo iptables -t nat -L -n -v
    ```
@@ -293,11 +300,13 @@ systemctl status fc-agent
 ### Permission Denied Errors
 
 1. Check if firecracker user exists:
+
    ```bash
    id firecracker
    ```
 
 2. Verify KVM access:
+
    ```bash
    sudo usermod -aG kvm firecracker
    sudo systemctl restart fc-agent
@@ -306,12 +315,14 @@ systemctl status fc-agent
 ### Firecracker Not Found
 
 1. Check Firecracker installation:
+
    ```bash
    which firecracker
    firecracker --version
    ```
 
 2. Update path in config:
+
    ```bash
    sudo nano /etc/firecracker-agent/agent.yaml
    # Update binary_path to correct location
@@ -351,11 +362,13 @@ sudo delgroup firecracker
 ## Security Considerations
 
 1. **Firewall**: Restrict access to gRPC port (50051)
+
    ```bash
    sudo ufw allow from 192.168.1.0/24 to any port 50051
    ```
 
 2. **File Permissions**: Ensure configuration files are protected
+
    ```bash
    sudo chmod 640 /etc/firecracker-agent/agent.yaml
    ```
@@ -368,7 +381,7 @@ sudo delgroup firecracker
 
 After installation:
 
-1. **Configure mikrom-go**: Update mikrom-go configuration to use this agent
+1. **Configure mikrom**: Update mikrom configuration to use this agent
 2. **Test VM Creation**: Create a test VM through the API
 3. **Monitor Performance**: Check logs and system resources
 4. **Backup Configuration**: Save your configuration files
@@ -377,6 +390,6 @@ After installation:
 
 For issues or questions:
 
-- GitHub Issues: https://github.com/apardo/firecracker-agent/issues
-- Documentation: https://github.com/apardo/firecracker-agent/docs
-- Email: apardo@spluca.org
+- GitHub Issues: <https://github.com/spluca/firecracker-agent/issues>
+- Documentation: <https://github.com/spluca/firecracker-agent/docs>
+- Email: <apardo@spluca.org>

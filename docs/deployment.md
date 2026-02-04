@@ -40,7 +40,7 @@ sudo modprobe kvm_intel  # or kvm_amd for AMD CPUs
 
 ```bash
 # Download latest release
-wget https://github.com/apardo/firecracker-agent/releases/download/v0.1.0/fc-agent-linux-amd64.tar.gz
+wget https://github.com/spluca/firecracker-agent/releases/download/v0.1.0/fc-agent-linux-amd64.tar.gz
 tar -xzf fc-agent-linux-amd64.tar.gz
 cd fc-agent-linux-amd64
 
@@ -52,7 +52,7 @@ sudo ./scripts/install.sh
 
 ```bash
 # Clone repository
-git clone https://github.com/apardo/firecracker-agent.git
+git clone https://github.com/spluca/firecracker-agent.git
 cd firecracker-agent
 
 # Install dependencies
@@ -347,6 +347,6 @@ sudo rm /etc/systemd/system/fc-agent.service
 
 ## Support
 
-- Documentation: https://github.com/apardo/firecracker-agent/docs
-- Issues: https://github.com/apardo/firecracker-agent/issues
+- Documentation: https://github.com/spluca/firecracker-agent/docs
+- Issues: https://github.com/spluca/firecracker-agent/issues
 - Slack: #firecracker-agent

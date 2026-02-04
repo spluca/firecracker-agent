@@ -1,4 +1,4 @@
-module github.com/apardo/firecracker-agent
+module github.com/spluca/firecracker-agent
 
 go 1.25.6
 

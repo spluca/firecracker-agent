@@ -15,7 +15,7 @@ variables:
   PACKAGE_REVISION: "1"
   
   # Project settings
-  GO_PROJECT: github.com/apardo/firecracker-agent
+  GO_PROJECT: github.com/spluca/firecracker-agent
   
   # Artifact paths
   BINARY_NAME: fc-agent

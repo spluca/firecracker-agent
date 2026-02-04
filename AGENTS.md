@@ -5,7 +5,7 @@ This document provides essential guidelines for AI coding agents working on the 
 ## Project Overview
 
 Firecracker Agent is a high-performance gRPC service written in Go for managing Firecracker microVMs.
-Module: `github.com/apardo/firecracker-agent`
+Module: `github.com/spluca/firecracker-agent`
 Go version: 1.24.0
 
 ## Build & Test Commands
@@ -95,13 +95,13 @@ import (
     "time"
 
     // External dependencies
-    pb "github.com/apardo/firecracker-agent/api/proto/firecracker/v1"
+    pb "github.com/spluca/firecracker-agent/api/proto/firecracker/v1"
     "github.com/sirupsen/logrus"
     "google.golang.org/grpc"
 
     // Internal packages
-    "github.com/apardo/firecracker-agent/internal/firecracker"
-    "github.com/apardo/firecracker-agent/pkg/config"
+    "github.com/spluca/firecracker-agent/internal/firecracker"
+    "github.com/spluca/firecracker-agent/pkg/config"
 )
 ```
 

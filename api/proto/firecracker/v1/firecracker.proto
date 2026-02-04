@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package firecracker.v1;
 
-option go_package = "github.com/apardo/firecracker-agent/api/proto/firecracker/v1";
+option go_package = "github.com/spluca/firecracker-agent/api/proto/firecracker/v1";
 
 // FirecrackerAgent service manages Firecracker microVMs
 service FirecrackerAgent {

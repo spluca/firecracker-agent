@@ -8,7 +8,7 @@ Recommends: linux-image-generic (>= 5.10)
 Suggests: firecracker-agent-doc
 Section: admin
 Priority: optional
-Homepage: https://github.com/apardo/firecracker-agent
+Homepage: https://github.com/spluca/firecracker-agent
 Description: gRPC service for managing Firecracker microVMs
  Firecracker Agent is a high-performance gRPC service that provides
  programmatic control over Firecracker microVMs. It manages the complete

@@ -318,7 +318,7 @@ The agent uses standard gRPC status codes:
 
 ```go
 import (
-    pb "github.com/apardo/firecracker-agent/api/proto/firecracker/v1"
+    pb "github.com/spluca/firecracker-agent/api/proto/firecracker/v1"
     "google.golang.org/grpc"
 )
 
