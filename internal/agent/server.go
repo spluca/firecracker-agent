@@ -7,6 +7,7 @@ import (
 
 	pb "github.com/spluca/firecracker-agent/api/proto/firecracker/v1"
 	"github.com/spluca/firecracker-agent/internal/firecracker"
+	"github.com/spluca/firecracker-agent/internal/monitor"
 	"github.com/spluca/firecracker-agent/pkg/config"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -18,7 +19,7 @@ type Server struct {
 
 	cfg         *config.Config
 	log         *logrus.Logger
-	fcManager   *firecracker.Manager
+	fcManager   firecracker.VMManager
 	startTime   time.Time
 	eventStream *EventStream
 	mu          sync.RWMutex
@@ -37,7 +38,7 @@ func NewServer(cfg *config.Config, log *logrus.Logger, startTime time.Time) (*Se
 		log:         log,
 		fcManager:   fcManager,
 		startTime:   startTime,
-		eventStream: NewEventStream(),
+		eventStream: NewEventStream(log),
 	}, nil
 }
 
@@ -47,7 +48,7 @@ func (s *Server) Register(grpcServer *grpc.Server) {
 	s.log.Info("gRPC service registered")
 }
 
-// LoggingInterceptor logs all gRPC requests
+// LoggingInterceptor logs all gRPC requests and records Prometheus metrics.
 func LoggingInterceptor(log *logrus.Logger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
@@ -61,17 +62,22 @@ func LoggingInterceptor(log *logrus.Logger) grpc.UnaryServerInterceptor {
 
 		duration := time.Since(start)
 
+		statusLabel := "ok"
 		fields := logrus.Fields{
 			"method":   info.FullMethod,
 			"duration": duration.String(),
 		}
 
 		if err != nil {
+			statusLabel = "error"
 			fields["error"] = err.Error()
 			log.WithFields(fields).Error("gRPC call failed")
 		} else {
 			log.WithFields(fields).Info("gRPC call completed")
 		}
+
+		monitor.GRPCRequestsTotal.WithLabelValues(info.FullMethod, statusLabel).Inc()
+		monitor.VMOperationDuration.WithLabelValues(info.FullMethod).Observe(duration.Seconds())
 
 		return resp, err
 	}
@@ -81,12 +87,14 @@ func LoggingInterceptor(log *logrus.Logger) grpc.UnaryServerInterceptor {
 type EventStream struct {
 	subscribers map[string]chan *pb.VMEvent
 	mu          sync.RWMutex
+	log         *logrus.Logger
 }
 
 // NewEventStream creates a new event stream
-func NewEventStream() *EventStream {
+func NewEventStream(log *logrus.Logger) *EventStream {
 	return &EventStream{
 		subscribers: make(map[string]chan *pb.VMEvent),
+		log:         log,
 	}
 }
 
@@ -116,11 +124,15 @@ func (es *EventStream) Broadcast(event *pb.VMEvent) {
 	es.mu.RLock()
 	defer es.mu.RUnlock()
 
-	for _, ch := range es.subscribers {
+	for id, ch := range es.subscribers {
 		select {
 		case ch <- event:
 		default:
-			// Skip if channel is full
+			es.log.WithFields(logrus.Fields{
+				"subscriber_id": id,
+				"vm_id":         event.VmId,
+				"event_type":    event.Type.String(),
+			}).Warn("Event dropped: subscriber channel full")
 		}
 	}
 }

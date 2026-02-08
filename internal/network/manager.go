@@ -8,6 +8,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// NetworkManager defines the interface for VM network management.
+type NetworkManager interface {
+	CreateTAPDevice(vmID string) (string, error)
+	DeleteTAPDevice(tapName string) error
+	EnsureBridgeExists() error
+	GenerateMAC(vmID string) string
+}
+
+// Compile-time check that Manager implements NetworkManager.
+var _ NetworkManager = (*Manager)(nil)
+
 // Manager handles network configuration for VMs
 type Manager struct {
 	bridgeName string
@@ -28,7 +39,11 @@ func NewManager(bridgeName, bridgeIP, tapPrefix string, log *logrus.Logger) *Man
 
 // CreateTAPDevice creates a TAP device for a VM
 func (m *Manager) CreateTAPDevice(vmID string) (string, error) {
-	tapName := fmt.Sprintf("%s-%s", m.tapPrefix, vmID[:8])
+	suffix := vmID
+	if len(suffix) > 8 {
+		suffix = suffix[:8]
+	}
+	tapName := fmt.Sprintf("%s-%s", m.tapPrefix, suffix)
 
 	m.log.WithField("tap_device", tapName).Info("Creating TAP device")
 

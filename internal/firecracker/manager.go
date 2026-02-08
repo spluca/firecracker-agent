@@ -3,7 +3,7 @@ package firecracker
 import (
 	"context"
 	"fmt"
-	"strings"
+	"net"
 	"sync"
 	"time"
 
@@ -13,6 +13,19 @@ import (
 	"github.com/spluca/firecracker-agent/pkg/config"
 	"github.com/sirupsen/logrus"
 )
+
+// VMManager defines the interface for managing Firecracker VMs.
+type VMManager interface {
+	CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VMInfo, error)
+	StartVM(ctx context.Context, vmID string) error
+	StopVM(ctx context.Context, vmID string, force bool) error
+	DeleteVM(ctx context.Context, vmID string) error
+	GetVM(vmID string) (*pb.VMInfo, error)
+	ListVMs() []*pb.VMInfo
+}
+
+// Compile-time check that Manager implements VMManager.
+var _ VMManager = (*Manager)(nil)
 
 // Manager manages Firecracker VMs
 type Manager struct {
@@ -85,37 +98,46 @@ func (m *Manager) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VM
 		rootfsPath = m.cfg.Firecracker.RootfsPath
 	}
 
+	// Deferred cleanup stack: on error, run cleanups in reverse order
+	var cleanups []func()
+	committed := false
+	defer func() {
+		if !committed {
+			for i := len(cleanups) - 1; i >= 0; i-- {
+				cleanups[i]()
+			}
+		}
+	}()
+
 	var vmStorage *storage.VMStorage
-	var jailPaths *storage.JailPaths
 	var process *VMProcess
 	var tapDevice string
 	var macAddr string
-	var err error
 
-	// Check if we should use jailer (enabled by default for security)
-	useJailer := m.cfg.Firecracker.UseJailer
+	useJailer := m.cfg.Firecracker.UseJailer != nil && *m.cfg.Firecracker.UseJailer
 
 	if useJailer {
 		m.log.WithField("vm_id", req.VmId).Info("Using Firecracker jailer for security isolation")
 
 		// Setup jail directory
-		jailPaths, err = m.storageManager.SetupJailDirectory(req.VmId, kernelPath, rootfsPath)
+		jailPaths, err := m.storageManager.SetupJailDirectory(req.VmId, kernelPath, rootfsPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to setup jail directory: %w", err)
 		}
+		cleanups = append(cleanups, func() {
+			m.storageManager.CleanupJail(req.VmId)
+			m.storageManager.CleanupVMStorage(req.VmId)
+		})
 
-		// Update jail paths with firecracker binary path
 		jailPaths.FirecrackerBinary = m.cfg.Firecracker.BinaryPath
 
 		// Create TAP device
 		tapDevice, err = m.networkManager.CreateTAPDevice(req.VmId)
 		if err != nil {
-			m.storageManager.CleanupJail(req.VmId)
-			m.storageManager.CleanupVMStorage(req.VmId)
 			return nil, fmt.Errorf("failed to create TAP device: %w", err)
 		}
+		cleanups = append(cleanups, func() { m.networkManager.DeleteTAPDevice(tapDevice) })
 
-		// Generate MAC address
 		macAddr = m.networkManager.GenerateMAC(req.VmId)
 
 		// Start jailed Firecracker process
@@ -129,13 +151,10 @@ func (m *Manager) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VM
 			m.log,
 		)
 		if err != nil {
-			m.networkManager.DeleteTAPDevice(tapDevice)
-			m.storageManager.CleanupJail(req.VmId)
-			m.storageManager.CleanupVMStorage(req.VmId)
 			return nil, fmt.Errorf("failed to start jailed Firecracker process: %w", err)
 		}
+		cleanups = append(cleanups, func() { process.Kill() })
 
-		// Use jail paths for configuration
 		vmStorage = &storage.VMStorage{
 			VMDir:      jailPaths.JailDir,
 			RootfsPath: jailPaths.RootfsPath,
@@ -147,19 +166,20 @@ func (m *Manager) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VM
 		m.log.WithField("vm_id", req.VmId).Warn("Running Firecracker without jailer (security risk)")
 
 		// Prepare storage (traditional mode without jailer)
+		var err error
 		vmStorage, err = m.storageManager.PrepareVMStorage(req.VmId, kernelPath, rootfsPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to prepare storage: %w", err)
 		}
+		cleanups = append(cleanups, func() { m.storageManager.CleanupVMStorage(req.VmId) })
 
 		// Create TAP device
 		tapDevice, err = m.networkManager.CreateTAPDevice(req.VmId)
 		if err != nil {
-			m.storageManager.CleanupVMStorage(req.VmId)
 			return nil, fmt.Errorf("failed to create TAP device: %w", err)
 		}
+		cleanups = append(cleanups, func() { m.networkManager.DeleteTAPDevice(tapDevice) })
 
-		// Generate MAC address
 		macAddr = m.networkManager.GenerateMAC(req.VmId)
 
 		// Start Firecracker process directly
@@ -171,88 +191,57 @@ func (m *Manager) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VM
 			m.log,
 		)
 		if err != nil {
-			m.networkManager.DeleteTAPDevice(tapDevice)
-			m.storageManager.CleanupVMStorage(req.VmId)
 			return nil, fmt.Errorf("failed to start Firecracker process: %w", err)
 		}
+		cleanups = append(cleanups, func() { process.Kill() })
 	}
 
 	// Configure Firecracker via API
 	client := process.Client
 
-	// Determine Gateway IP (Bridge IP) - remove CIDR for gateway
-	gatewayIP := m.cfg.Network.BridgeIP
-	if idx := strings.Index(gatewayIP, "/"); idx != -1 {
-		gatewayIP = gatewayIP[:idx]
-	}
+	// Determine Gateway IP from Bridge CIDR
+	gatewayIP := m.extractGatewayIP(m.cfg.Network.BridgeIP)
 
 	// Build boot arguments
 	bootArgs := "console=ttyS0 reboot=k panic=1 pci=off"
 	if req.IpAddress != "" {
-		// Format: ip=<client-ip>:<server-ip>:<gw-ip>:<netmask>:<hostname>:<device>:<autoconf>
-		// We use bridge IP as server and gateway
-		// Assuming /24 netmask (255.255.255.0) for simplicity as it matches default bridge config
 		bootArgs = fmt.Sprintf("%s ip=%s:%s:%s:255.255.255.0::eth0:off",
 			bootArgs, req.IpAddress, gatewayIP, gatewayIP)
 	}
 
-	// Set boot source
-	bootSource := BootSource{
+	if err := client.SetBootSource(ctx, BootSource{
 		KernelImagePath: vmStorage.KernelPath,
 		BootArgs:        bootArgs,
-	}
-	if err := client.SetBootSource(ctx, bootSource); err != nil {
-		process.Kill()
-		m.networkManager.DeleteTAPDevice(tapDevice)
-		m.storageManager.CleanupVMStorage(req.VmId)
+	}); err != nil {
 		return nil, fmt.Errorf("failed to set boot source: %w", err)
 	}
 
-	// Set machine config
-	machineConfig := MachineConfig{
+	if err := client.SetMachineConfig(ctx, MachineConfig{
 		VcpuCount:  req.VcpuCount,
 		MemSizeMib: req.MemoryMb,
-		Smt:        false, // Disable SMT/Hyper-Threading
-	}
-	if err := client.SetMachineConfig(ctx, machineConfig); err != nil {
-		process.Kill()
-		m.networkManager.DeleteTAPDevice(tapDevice)
-		m.storageManager.CleanupVMStorage(req.VmId)
+		Smt:        false,
+	}); err != nil {
 		return nil, fmt.Errorf("failed to set machine config: %w", err)
 	}
 
-	// Add rootfs drive
-	drive := Drive{
+	if err := client.AddDrive(ctx, Drive{
 		DriveID:      "rootfs",
 		PathOnHost:   vmStorage.RootfsPath,
 		IsRootDevice: true,
 		IsReadOnly:   false,
-	}
-	if err := client.AddDrive(ctx, drive); err != nil {
-		process.Kill()
-		m.networkManager.DeleteTAPDevice(tapDevice)
-		m.storageManager.CleanupVMStorage(req.VmId)
+	}); err != nil {
 		return nil, fmt.Errorf("failed to add drive: %w", err)
 	}
 
-	// Add network interface
-	netIface := NetworkInterface{
+	if err := client.AddNetworkInterface(ctx, NetworkInterface{
 		IfaceID:     "eth0",
 		HostDevName: tapDevice,
 		GuestMAC:    macAddr,
-	}
-	if err := client.AddNetworkInterface(ctx, netIface); err != nil {
-		process.Kill()
-		m.networkManager.DeleteTAPDevice(tapDevice)
-		m.storageManager.CleanupVMStorage(req.VmId)
+	}); err != nil {
 		return nil, fmt.Errorf("failed to add network interface: %w", err)
 	}
 
-	// Start the VM
 	if err := client.StartInstance(ctx); err != nil {
-		process.Kill()
-		m.networkManager.DeleteTAPDevice(tapDevice)
-		m.storageManager.CleanupVMStorage(req.VmId)
 		return nil, fmt.Errorf("failed to start instance: %w", err)
 	}
 
@@ -268,7 +257,7 @@ func (m *Manager) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VM
 		Metadata:   req.Metadata,
 	}
 
-	vm := &VM{
+	m.vms[req.VmId] = &VM{
 		Info:       vmInfo,
 		Process:    process,
 		SocketPath: vmStorage.SocketPath,
@@ -276,7 +265,7 @@ func (m *Manager) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VM
 		CreatedAt:  time.Now(),
 	}
 
-	m.vms[req.VmId] = vm
+	committed = true
 
 	m.log.WithFields(logrus.Fields{
 		"vm_id":      req.VmId,
@@ -287,6 +276,16 @@ func (m *Manager) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.VM
 	}).Info("VM created successfully")
 
 	return vmInfo, nil
+}
+
+// extractGatewayIP extracts the IP address from a CIDR string (e.g. "172.16.0.1/24" -> "172.16.0.1").
+func (m *Manager) extractGatewayIP(cidr string) string {
+	ip, _, err := net.ParseCIDR(cidr)
+	if err != nil {
+		m.log.WithError(err).WithField("cidr", cidr).Warn("Failed to parse bridge CIDR, using raw value")
+		return cidr
+	}
+	return ip.String()
 }
 
 // StartVM starts an existing VM (not applicable for Firecracker - VMs start on creation)
@@ -377,7 +376,7 @@ func (m *Manager) DeleteVM(ctx context.Context, vmID string) error {
 	}
 
 	// Cleanup jail directory if using jailer
-	if m.cfg.Firecracker.UseJailer {
+	if m.cfg.Firecracker.UseJailer != nil && *m.cfg.Firecracker.UseJailer {
 		if err := m.storageManager.CleanupJail(vmID); err != nil {
 			m.log.WithError(err).Warn("Failed to cleanup jail directory")
 		}
@@ -396,6 +395,29 @@ func (m *Manager) DeleteVM(ctx context.Context, vmID string) error {
 	return nil
 }
 
+// resolveVMState returns the current state of a VM, checking process status.
+// This does not mutate the VM, making it safe to call under RLock.
+func (m *Manager) resolveVMState(vm *VM) pb.VMState {
+	if vm.Process != nil && !vm.Process.IsRunning() {
+		return pb.VMState_VM_STATE_STOPPED
+	}
+	return vm.Info.State
+}
+
+// copyVMInfo returns a copy of VMInfo with the current resolved state.
+func (m *Manager) copyVMInfo(vm *VM) *pb.VMInfo {
+	return &pb.VMInfo{
+		VmId:       vm.Info.VmId,
+		State:      m.resolveVMState(vm),
+		VcpuCount:  vm.Info.VcpuCount,
+		MemoryMb:   vm.Info.MemoryMb,
+		IpAddress:  vm.Info.IpAddress,
+		SocketPath: vm.Info.SocketPath,
+		CreatedAt:  vm.Info.CreatedAt,
+		Metadata:   vm.Info.Metadata,
+	}
+}
+
 // GetVM retrieves VM information
 func (m *Manager) GetVM(vmID string) (*pb.VMInfo, error) {
 	m.mu.RLock()
@@ -406,12 +428,7 @@ func (m *Manager) GetVM(vmID string) (*pb.VMInfo, error) {
 		return nil, fmt.Errorf("VM %s not found", vmID)
 	}
 
-	// Update state based on process status
-	if vm.Process != nil && !vm.Process.IsRunning() {
-		vm.Info.State = pb.VMState_VM_STATE_STOPPED
-	}
-
-	return vm.Info, nil
+	return m.copyVMInfo(vm), nil
 }
 
 // ListVMs lists all VMs
@@ -421,11 +438,7 @@ func (m *Manager) ListVMs() []*pb.VMInfo {
 
 	vms := make([]*pb.VMInfo, 0, len(m.vms))
 	for _, vm := range m.vms {
-		// Update state based on process status
-		if vm.Process != nil && !vm.Process.IsRunning() {
-			vm.Info.State = pb.VMState_VM_STATE_STOPPED
-		}
-		vms = append(vms, vm.Info)
+		vms = append(vms, m.copyVMInfo(vm))
 	}
 
 	return vms

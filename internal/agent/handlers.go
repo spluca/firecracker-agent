@@ -8,11 +8,30 @@ import (
 	"time"
 
 	pb "github.com/spluca/firecracker-agent/api/proto/firecracker/v1"
+	"github.com/spluca/firecracker-agent/internal/monitor"
+	"github.com/spluca/firecracker-agent/internal/version"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// broadcastEvent builds and broadcasts a VMEvent to all subscribers.
+func (s *Server) broadcastEvent(vmID string, state pb.VMState, eventType pb.EventType, message string) {
+	s.eventStream.Broadcast(&pb.VMEvent{
+		VmId:      vmID,
+		State:     state,
+		Message:   message,
+		Timestamp: time.Now().Unix(),
+		Type:      eventType,
+	})
+}
+
+// broadcastError broadcasts an error event and logs the error.
+func (s *Server) broadcastError(vmID string, action string, err error) {
+	s.log.WithError(err).Error("Failed to " + action)
+	s.broadcastEvent(vmID, pb.VMState_VM_STATE_ERROR, pb.EventType_EVENT_TYPE_ERROR, err.Error())
+}
 
 // CreateVM creates a new Firecracker VM
 func (s *Server) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.CreateVMResponse, error) {
@@ -32,16 +51,7 @@ func (s *Server) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.Cre
 	// Create VM using Firecracker manager
 	vmInfo, err := s.fcManager.CreateVM(ctx, req)
 	if err != nil {
-		s.log.WithError(err).Error("Failed to create VM")
-
-		// Broadcast error event
-		s.eventStream.Broadcast(&pb.VMEvent{
-			VmId:      req.VmId,
-			State:     pb.VMState_VM_STATE_ERROR,
-			Message:   err.Error(),
-			Timestamp: time.Now().Unix(),
-			Type:      pb.EventType_EVENT_TYPE_ERROR,
-		})
+		s.broadcastError(req.VmId, "create VM", err)
 
 		return &pb.CreateVMResponse{
 			VmId:         req.VmId,
@@ -50,14 +60,9 @@ func (s *Server) CreateVM(ctx context.Context, req *pb.CreateVMRequest) (*pb.Cre
 		}, nil
 	}
 
-	// Broadcast created event
-	s.eventStream.Broadcast(&pb.VMEvent{
-		VmId:      req.VmId,
-		State:     pb.VMState_VM_STATE_RUNNING,
-		Message:   "VM created successfully",
-		Timestamp: time.Now().Unix(),
-		Type:      pb.EventType_EVENT_TYPE_CREATED,
-	})
+	s.broadcastEvent(req.VmId, pb.VMState_VM_STATE_RUNNING, pb.EventType_EVENT_TYPE_CREATED, "VM created successfully")
+	monitor.VMsCreated.Inc()
+	monitor.VMsRunning.Inc()
 
 	return &pb.CreateVMResponse{
 		VmId:       vmInfo.VmId,
@@ -77,15 +82,7 @@ func (s *Server) StartVM(ctx context.Context, req *pb.StartVMRequest) (*pb.Start
 
 	err := s.fcManager.StartVM(ctx, req.VmId)
 	if err != nil {
-		s.log.WithError(err).Error("Failed to start VM")
-
-		s.eventStream.Broadcast(&pb.VMEvent{
-			VmId:      req.VmId,
-			State:     pb.VMState_VM_STATE_ERROR,
-			Message:   err.Error(),
-			Timestamp: time.Now().Unix(),
-			Type:      pb.EventType_EVENT_TYPE_ERROR,
-		})
+		s.broadcastError(req.VmId, "start VM", err)
 
 		return &pb.StartVMResponse{
 			VmId:         req.VmId,
@@ -94,14 +91,7 @@ func (s *Server) StartVM(ctx context.Context, req *pb.StartVMRequest) (*pb.Start
 		}, nil
 	}
 
-	// Broadcast started event
-	s.eventStream.Broadcast(&pb.VMEvent{
-		VmId:      req.VmId,
-		State:     pb.VMState_VM_STATE_RUNNING,
-		Message:   "VM started",
-		Timestamp: time.Now().Unix(),
-		Type:      pb.EventType_EVENT_TYPE_STARTED,
-	})
+	s.broadcastEvent(req.VmId, pb.VMState_VM_STATE_RUNNING, pb.EventType_EVENT_TYPE_STARTED, "VM started")
 
 	return &pb.StartVMResponse{
 		VmId:  req.VmId,
@@ -119,15 +109,7 @@ func (s *Server) StopVM(ctx context.Context, req *pb.StopVMRequest) (*pb.StopVMR
 
 	err := s.fcManager.StopVM(ctx, req.VmId, req.Force)
 	if err != nil {
-		s.log.WithError(err).Error("Failed to stop VM")
-
-		s.eventStream.Broadcast(&pb.VMEvent{
-			VmId:      req.VmId,
-			State:     pb.VMState_VM_STATE_ERROR,
-			Message:   err.Error(),
-			Timestamp: time.Now().Unix(),
-			Type:      pb.EventType_EVENT_TYPE_ERROR,
-		})
+		s.broadcastError(req.VmId, "stop VM", err)
 
 		return &pb.StopVMResponse{
 			VmId:         req.VmId,
@@ -136,14 +118,8 @@ func (s *Server) StopVM(ctx context.Context, req *pb.StopVMRequest) (*pb.StopVMR
 		}, nil
 	}
 
-	// Broadcast stopped event
-	s.eventStream.Broadcast(&pb.VMEvent{
-		VmId:      req.VmId,
-		State:     pb.VMState_VM_STATE_STOPPED,
-		Message:   "VM stopped",
-		Timestamp: time.Now().Unix(),
-		Type:      pb.EventType_EVENT_TYPE_STOPPED,
-	})
+	s.broadcastEvent(req.VmId, pb.VMState_VM_STATE_STOPPED, pb.EventType_EVENT_TYPE_STOPPED, "VM stopped")
+	monitor.VMsRunning.Dec()
 
 	return &pb.StopVMResponse{
 		VmId:  req.VmId,
@@ -170,14 +146,8 @@ func (s *Server) DeleteVM(ctx context.Context, req *pb.DeleteVMRequest) (*pb.Del
 		}, nil
 	}
 
-	// Broadcast deleted event
-	s.eventStream.Broadcast(&pb.VMEvent{
-		VmId:      req.VmId,
-		State:     pb.VMState_VM_STATE_DELETING,
-		Message:   "VM deleted",
-		Timestamp: time.Now().Unix(),
-		Type:      pb.EventType_EVENT_TYPE_DELETED,
-	})
+	s.broadcastEvent(req.VmId, pb.VMState_VM_STATE_DELETING, pb.EventType_EVENT_TYPE_DELETED, "VM deleted")
+	monitor.VMsRunning.Dec()
 
 	return &pb.DeleteVMResponse{
 		VmId:    req.VmId,
@@ -271,7 +241,7 @@ func (s *Server) GetHostInfo(ctx context.Context, req *pb.GetHostInfoRequest) (*
 		AvailableMemoryMb: availMemMB,
 		RunningVms:        int32(len(vms)),
 		CpuUsage:          float32(cpuPercent[0]),
-		Version:           "0.1.0",
+		Version:           version.Version,
 	}, nil
 }
 
@@ -281,7 +251,7 @@ func (s *Server) HealthCheck(ctx context.Context, req *pb.HealthCheckRequest) (*
 
 	return &pb.HealthCheckResponse{
 		Healthy:       true,
-		Version:       "0.1.0",
+		Version:       version.Version,
 		UptimeSeconds: uptime,
 	}, nil
 }

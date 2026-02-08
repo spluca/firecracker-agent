@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spluca/firecracker-agent/internal/storage"
+	"github.com/spluca/firecracker-agent/pkg/fileutil"
 	"github.com/sirupsen/logrus"
 )
 
@@ -76,13 +77,13 @@ func StartJailedProcess(
 	jailedKernelPath := filepath.Join(jailRootDir, "vmlinux")
 	jailedRootfsPath := filepath.Join(jailRootDir, "rootfs.ext4")
 
-	if err := copyFile(jailPaths.FirecrackerBinary, jailedFirecrackerPath); err != nil {
+	if err := fileutil.CopyFile(jailPaths.FirecrackerBinary, jailedFirecrackerPath); err != nil {
 		return nil, fmt.Errorf("failed to copy firecracker binary: %w", err)
 	}
-	if err := copyFile(jailPaths.KernelPath, jailedKernelPath); err != nil {
+	if err := fileutil.CopyFile(jailPaths.KernelPath, jailedKernelPath); err != nil {
 		return nil, fmt.Errorf("failed to copy kernel: %w", err)
 	}
-	if err := copyFile(jailPaths.RootfsPath, jailedRootfsPath); err != nil {
+	if err := fileutil.CopyFile(jailPaths.RootfsPath, jailedRootfsPath); err != nil {
 		return nil, fmt.Errorf("failed to copy rootfs: %w", err)
 	}
 
@@ -225,17 +226,3 @@ func isProcessRunning(pid int) bool {
 	return err == nil
 }
 
-// copyFile copies a file using cp command
-func copyFile(src, dst string) error {
-	parent := filepath.Dir(dst)
-	if err := os.MkdirAll(parent, 0755); err != nil {
-		return fmt.Errorf("failed to create parent dir: %w", err)
-	}
-
-	cmd := exec.Command("cp", "-p", src, dst)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cp failed: %w (output: %s)", err, string(output))
-	}
-	return nil
-}

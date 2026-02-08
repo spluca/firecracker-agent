@@ -27,10 +27,10 @@ type FirecrackerConfig struct {
 	JailerPath string `yaml:"jailer_path"`
 	KernelPath string `yaml:"kernel_path"`
 	RootfsPath string `yaml:"rootfs_path"`
-	// NEW: Jailer configuration (enabled by default for security)
-	UseJailer bool `yaml:"use_jailer"`
-	JailUID   int  `yaml:"jail_uid"`
-	JailGID   int  `yaml:"jail_gid"`
+	// Jailer configuration (enabled by default for security)
+	UseJailer *bool `yaml:"use_jailer"`
+	JailUID   int   `yaml:"jail_uid"`
+	JailGID   int   `yaml:"jail_gid"`
 }
 
 type NetworkConfig struct {
@@ -94,8 +94,11 @@ func Load(path string) (*Config, error) {
 	if cfg.Monitoring.MetricsPort == 0 {
 		cfg.Monitoring.MetricsPort = 9090
 	}
-	// NEW: Default jailer configuration - enabled by default for security
-	cfg.Firecracker.UseJailer = true // Default to using jailer
+	// Default jailer configuration - enabled by default for security
+	if cfg.Firecracker.UseJailer == nil {
+		defaultTrue := true
+		cfg.Firecracker.UseJailer = &defaultTrue
+	}
 	if cfg.Firecracker.JailUID == 0 {
 		cfg.Firecracker.JailUID = 1000 // Default to non-privileged user
 	}

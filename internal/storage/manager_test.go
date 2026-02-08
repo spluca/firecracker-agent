@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spluca/firecracker-agent/pkg/fileutil"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -265,15 +266,14 @@ func TestManager_CleanupVMStorage(t *testing.T) {
 	})
 }
 
-func TestManager_copyFile(t *testing.T) {
+func TestCopyFile(t *testing.T) {
 	tempDir := t.TempDir()
-	manager := NewManager(tempDir, false, createTestLogger())
 
 	t.Run("successful file copy", func(t *testing.T) {
 		srcPath := createTestFile(t, tempDir, "source.txt", "test content")
 		dstPath := filepath.Join(tempDir, "destination.txt")
 
-		err := manager.copyFile(srcPath, dstPath)
+		err := fileutil.CopyFile(srcPath, dstPath)
 
 		require.NoError(t, err)
 		assert.FileExists(t, dstPath)
@@ -288,10 +288,10 @@ func TestManager_copyFile(t *testing.T) {
 		srcPath := filepath.Join(tempDir, "nonexistent.txt")
 		dstPath := filepath.Join(tempDir, "destination2.txt")
 
-		err := manager.copyFile(srcPath, dstPath)
+		err := fileutil.CopyFile(srcPath, dstPath)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to copy file")
+		assert.Contains(t, err.Error(), "cp failed")
 	})
 
 	t.Run("copy large file", func(t *testing.T) {
@@ -306,7 +306,7 @@ func TestManager_copyFile(t *testing.T) {
 
 		dstPath := filepath.Join(tempDir, "large-destination.txt")
 
-		err = manager.copyFile(srcPath, dstPath)
+		err = fileutil.CopyFile(srcPath, dstPath)
 
 		require.NoError(t, err)
 		assert.FileExists(t, dstPath)

@@ -11,14 +11,13 @@ import (
 
 	"github.com/spluca/firecracker-agent/internal/agent"
 	"github.com/spluca/firecracker-agent/internal/monitor"
+	"github.com/spluca/firecracker-agent/internal/version"
 	"github.com/spluca/firecracker-agent/pkg/config"
 	"github.com/spluca/firecracker-agent/pkg/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 )
-
-const version = "0.1.0"
 
 var (
 	cfgFile   string
@@ -33,7 +32,7 @@ func main() {
 		Use:     "fc-agent",
 		Short:   "Firecracker Agent - gRPC VM management service",
 		Long:    `High-performance gRPC service for managing Firecracker microVMs`,
-		Version: version,
+		Version: version.Version,
 		RunE:    run,
 	}
 
@@ -55,7 +54,7 @@ func run(cmd *cobra.Command, args []string) error {
 	// Setup logger
 	log = logger.New(cfg.Log.Level, cfg.Log.Format)
 	log.WithFields(logrus.Fields{
-		"version": version,
+		"version": version.Version,
 		"config":  cfgFile,
 	}).Info("Starting Firecracker Agent")
 

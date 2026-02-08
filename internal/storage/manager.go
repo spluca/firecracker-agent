@@ -6,8 +6,21 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/spluca/firecracker-agent/pkg/fileutil"
 	"github.com/sirupsen/logrus"
 )
+
+// StorageManager defines the interface for VM storage management.
+type StorageManager interface {
+	PrepareVMStorage(vmID, kernelPath, rootfsPath string) (*VMStorage, error)
+	CleanupVMStorage(vmID string) error
+	SetupJailDirectory(vmID, kernelPath, rootfsPath string) (*JailPaths, error)
+	CleanupJail(vmID string) error
+	EnsureVMsDir() error
+}
+
+// Compile-time check that Manager implements StorageManager.
+var _ StorageManager = (*Manager)(nil)
 
 // Manager handles storage configuration for VMs
 type Manager struct {
@@ -71,7 +84,7 @@ func (m *Manager) PrepareVMStorage(vmID, kernelPath, rootfsPath string) (*VMStor
 	} else {
 		// Copy kernel to VM directory
 		storage.KernelPath = filepath.Join(vmDir, "vmlinux.bin")
-		if err := m.copyFile(kernelPath, storage.KernelPath); err != nil {
+		if err := fileutil.CopyFile(kernelPath, storage.KernelPath); err != nil {
 			return nil, fmt.Errorf("failed to copy kernel: %w", err)
 		}
 	}
@@ -87,7 +100,7 @@ func (m *Manager) PrepareVMStorage(vmID, kernelPath, rootfsPath string) (*VMStor
 	} else {
 		// Copy rootfs to VM directory
 		storage.RootfsPath = filepath.Join(vmDir, "rootfs.ext4")
-		if err := m.copyFile(rootfsPath, storage.RootfsPath); err != nil {
+		if err := fileutil.CopyFile(rootfsPath, storage.RootfsPath); err != nil {
 			return nil, fmt.Errorf("failed to copy rootfs: %w", err)
 		}
 	}
@@ -116,22 +129,6 @@ func (m *Manager) CleanupVMStorage(vmID string) error {
 	}
 
 	m.log.WithField("vm_id", vmID).Info("VM storage cleaned up")
-	return nil
-}
-
-// copyFile copies a file from src to dst
-func (m *Manager) copyFile(src, dst string) error {
-	m.log.WithFields(logrus.Fields{
-		"src": src,
-		"dst": dst,
-	}).Debug("Copying file")
-
-	// Use cp command for efficient copy
-	cmd := exec.Command("cp", src, dst)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to copy file: %w (output: %s)", err, string(output))
-	}
-
 	return nil
 }
 
