@@ -1,0 +1,213 @@
+# GitHub Actions CI/CD Pipeline for Firecracker Agent
+# Builds, tests, and packages the firecracker-agent service
+# Target: Debian Trixie (Debian 13 / testing)
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CGO_ENABLED: "0"
+  GOOS: linux
+  GOARCH: amd64
+  PACKAGE_VERSION: "0.1.0"
+  PACKAGE_REVISION: "1"
+  BINARY_NAME: fc-agent
+
+jobs:
+  # ==================== Stage: Lint ====================
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Check formatting
+        run: |
+          output=$(gofmt -l .)
+          if [ -n "$output" ]; then
+            echo "Files need formatting:"
+            echo "$output"
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run staticcheck
+        continue-on-error: true
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
+  # ==================== Stage: Test ====================
+
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-utils
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Run unit tests
+        run: |
+          go test -v -race -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out | tail -1
+          go tool cover -html=coverage.out -o coverage.html
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: |
+            coverage.out
+            coverage.html
+          retention-days: 30
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-utils iproute2 iptables bridge-utils
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Run integration tests
+        run: go test -v -tags=integration ./...
+
+  # ==================== Stage: Build ====================
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+      - name: Generate protobuf
+        run: |
+          protoc --go_out=. --go_opt=paths=source_relative \
+            --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+            api/proto/firecracker/v1/firecracker.proto
+
+      - name: Build binary
+        run: |
+          mkdir -p bin
+          go build -v \
+            -ldflags="-s -w -X main.Version=${{ env.PACKAGE_VERSION }} -X main.BuildTime=$(date -u '+%Y-%m-%d_%H:%M:%S')" \
+            -o bin/${{ env.BINARY_NAME }} ./cmd/fc-agent
+          ls -lh bin/${{ env.BINARY_NAME }}
+          file bin/${{ env.BINARY_NAME }}
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fc-agent-binary
+          path: bin/${{ env.BINARY_NAME }}
+          retention-days: 7
+
+  # ==================== Stage: Package ====================
+
+  package-debian:
+    name: Debian Package
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    needs: build
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq \
+            build-essential \
+            debhelper \
+            dh-golang \
+            golang-go \
+            protobuf-compiler \
+            git \
+            devscripts \
+            lintian
+
+      - name: Generate protobuf
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          protoc --go_out=. --go_opt=paths=source_relative \
+            --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+            api/proto/firecracker/v1/firecracker.proto
+
+      - name: Build Debian package
+        run: |
+          go mod download
+          dpkg-buildpackage -us -uc -b
+          mkdir -p packages
+          mv ../*.deb packages/ || true
+          mv ../*.buildinfo packages/ || true
+          mv ../*.changes packages/ || true
+          ls -lh packages/
+          dpkg-deb --info packages/*.deb
+          dpkg-deb --contents packages/*.deb
+
+      - name: Run lintian checks
+        run: lintian packages/*.deb || true
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-package
+          path: |
+            packages/*.deb
+            packages/*.buildinfo
+            packages/*.changes
+          retention-days: 30
