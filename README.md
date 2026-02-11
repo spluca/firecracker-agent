@@ -1,5 +1,7 @@
 # Firecracker Agent
 
+[![CI](https://github.com/spluca/firecracker-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/spluca/firecracker-agent/actions/workflows/ci.yml)
+
 🚀 High-performance gRPC service for managing Firecracker microVMs with ultra-fast startup times (< 500ms).
 
 ## ✨ Features
