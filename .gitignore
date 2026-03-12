@@ -39,4 +39,14 @@ Thumbs.db
 # Temporary files
 /tmp/
 
+# Go module cache (used as GOPATH during build)
 go
+
+# Debian build artifacts
+debian/.debhelper
+debian/debhelper-build-stamp
+debian/files
+debian/*.debhelper
+debian/*.debhelper.log
+debian/*.substvars
+debian/firecracker-agent/

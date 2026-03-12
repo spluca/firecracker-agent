@@ -46,17 +46,20 @@ fi
 echo "Downloading Go dependencies..."
 go mod download
 
-# Build the package
+# Build the package (binary + source)
 echo "Building Debian package..."
-dpkg-buildpackage -us -uc -b
+dpkg-buildpackage -us -uc
 
 # Check if build was successful
 if [ $? -eq 0 ]; then
   echo ""
   echo "=== Build Successful ==="
   echo ""
-  echo "Package created:"
+  echo "Binary package:"
   ls -lh ../firecracker-agent_*.deb
+  echo ""
+  echo "Source package:"
+  ls -lh ../firecracker-agent_*.dsc ../firecracker-agent_*.tar.* 2>/dev/null
   echo ""
   echo "To install:"
   echo "  sudo dpkg -i ../firecracker-agent_*.deb"
