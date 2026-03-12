@@ -5,23 +5,23 @@ echo "=== Building Firecracker Agent Debian Package for Debian Trixie ==="
 
 # Check if we're in the right directory
 if [ ! -f "go.mod" ] || [ ! -d "debian" ]; then
-    echo "Error: Must be run from the firecracker-agent root directory"
-    exit 1
+  echo "Error: Must be run from the firecracker-agent root directory"
+  exit 1
 fi
 
 # Check for required tools
 REQUIRED_TOOLS="dpkg-buildpackage dh go"
 for tool in $REQUIRED_TOOLS; do
-    if ! command -v $tool &> /dev/null; then
-        echo "Error: Required tool '$tool' not found"
-        echo "Install with: sudo apt-get install build-essential debhelper golang protobuf-compiler"
-        exit 1
-    fi
+  if ! command -v $tool &>/dev/null; then
+    echo "Error: Required tool '$tool' not found"
+    echo "Install with: sudo apt-get install build-essential debhelper golang protobuf-compiler"
+    exit 1
+  fi
 done
 
 # protoc is optional - will be checked during build if needed
-if ! command -v protoc &> /dev/null; then
-    echo "Warning: protoc not found - protobuf generation may fail during build"
+if ! command -v protoc &>/dev/null; then
+  echo "Warning: protoc not found - protobuf generation may fail during build"
 fi
 
 # Clean previous builds
@@ -36,10 +36,10 @@ rm -f ../firecracker-agent_*.tar.*
 # Generate protobuf files if needed
 echo "Generating protobuf files..."
 if [ -f "api/proto/firecracker/v1/firecracker.proto" ]; then
-    mkdir -p api/proto/firecracker/v1
-    protoc --go_out=. --go_opt=paths=source_relative \
-        --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-        api/proto/firecracker/v1/firecracker.proto || echo "Note: protoc generation failed, will try during build"
+  mkdir -p api/proto/firecracker/v1
+  protoc --go_out=. --go_opt=paths=source_relative \
+    --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+    api/proto/firecracker/v1/firecracker.proto || echo "Note: protoc generation failed, will try during build"
 fi
 
 # Download Go dependencies
@@ -52,22 +52,22 @@ dpkg-buildpackage -us -uc -b
 
 # Check if build was successful
 if [ $? -eq 0 ]; then
-    echo ""
-    echo "=== Build Successful ==="
-    echo ""
-    echo "Package created:"
-    ls -lh ../firecracker-agent_*.deb
-    echo ""
-    echo "To install:"
-    echo "  sudo dpkg -i ../firecracker-agent_*.deb"
-    echo "  sudo apt-get install -f  # Fix dependencies if needed"
-    echo ""
-    echo "To enable and start the service:"
-    echo "  sudo systemctl enable fc-agent"
-    echo "  sudo systemctl start fc-agent"
-    echo ""
+  echo ""
+  echo "=== Build Successful ==="
+  echo ""
+  echo "Package created:"
+  ls -lh ../firecracker-agent_*.deb
+  echo ""
+  echo "To install:"
+  echo "  sudo dpkg -i ../firecracker-agent_*.deb"
+  echo "  sudo apt-get install -f  # Fix dependencies if needed"
+  echo ""
+  echo "To enable and start the service:"
+  echo "  sudo systemctl enable fc-agent"
+  echo "  sudo systemctl start fc-agent"
+  echo ""
 else
-    echo ""
-    echo "=== Build Failed ==="
-    exit 1
+  echo ""
+  echo "=== Build Failed ==="
+  exit 1
 fi

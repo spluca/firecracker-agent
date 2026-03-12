@@ -2,7 +2,7 @@ Package: firecracker-agent
 Version: 0.1.0-1
 Architecture: amd64
 Maintainer: Antonio Pardo <apardo@spluca.org>
-Installed-Size: 14009
+Installed-Size: 14238
 Depends: qemu-utils, iproute2, iptables, bridge-utils
 Recommends: linux-image-generic (>= 5.10)
 Suggests: firecracker-agent-doc
