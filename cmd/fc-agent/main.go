@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 var (
@@ -71,6 +72,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Register gRPC service
 	agentServer.Register(grpcServer)
+	reflection.Register(grpcServer)
 
 	// Start metrics server if enabled
 	if cfg.Monitoring.Enabled {
