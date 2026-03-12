@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	pb "github.com/spluca/firecracker-agent/api/proto/firecracker/v1"
 	"github.com/spluca/firecracker-agent/internal/network"
 	"github.com/spluca/firecracker-agent/internal/storage"
 	"github.com/spluca/firecracker-agent/pkg/config"
-	"github.com/sirupsen/logrus"
 )
 
 // VMManager defines the interface for managing Firecracker VMs.

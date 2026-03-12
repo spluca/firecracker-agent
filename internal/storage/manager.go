@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/spluca/firecracker-agent/pkg/fileutil"
 	"github.com/sirupsen/logrus"
+	"github.com/spluca/firecracker-agent/pkg/fileutil"
 )
 
 // StorageManager defines the interface for VM storage management.

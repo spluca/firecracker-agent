@@ -7,11 +7,11 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 	pb "github.com/spluca/firecracker-agent/api/proto/firecracker/v1"
 	"github.com/spluca/firecracker-agent/internal/monitor"
 	"github.com/spluca/firecracker-agent/internal/version"
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/mem"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

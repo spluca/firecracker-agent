@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spluca/firecracker-agent/internal/storage"
 	"github.com/spluca/firecracker-agent/pkg/fileutil"
-	"github.com/sirupsen/logrus"
 )
 
 // StartJailedProcess starts a new Firecracker process using the native firecracker jailer
@@ -225,4 +225,3 @@ func isProcessRunning(pid int) bool {
 	err = process.Signal(syscall.Signal(0))
 	return err == nil
 }
-

@@ -9,13 +9,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 	"github.com/spluca/firecracker-agent/internal/agent"
 	"github.com/spluca/firecracker-agent/internal/monitor"
 	"github.com/spluca/firecracker-agent/internal/version"
 	"github.com/spluca/firecracker-agent/pkg/config"
 	"github.com/spluca/firecracker-agent/pkg/logger"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )

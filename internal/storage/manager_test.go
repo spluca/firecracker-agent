@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spluca/firecracker-agent/pkg/fileutil"
 	"github.com/sirupsen/logrus"
+	"github.com/spluca/firecracker-agent/pkg/fileutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
