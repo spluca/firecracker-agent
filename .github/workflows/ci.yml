@@ -231,6 +231,7 @@ jobs:
 
       - name: Build Debian package
         run: |
+          export GOPATH="$PWD/go"
           go mod download
           dpkg-buildpackage -us -uc -b
           mkdir -p packages
