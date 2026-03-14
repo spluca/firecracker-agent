@@ -6,6 +6,7 @@
 export CGO_ENABLED := 0
 export GOCACHE := /tmp/go-build
 export GOPATH := $(CURDIR)/go
+export GO111MODULE := on
 
 %:
 	dh $@
