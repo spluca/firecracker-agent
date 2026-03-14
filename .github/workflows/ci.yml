@@ -203,11 +203,21 @@ jobs:
             build-essential \
             debhelper \
             dh-golang \
-            golang-go \
             protobuf-compiler \
             git \
             devscripts \
-            lintian
+            lintian \
+            curl \
+            ca-certificates
+
+      - name: Install Go 1.25
+        run: |
+          curl -fsSL https://go.dev/dl/go1.25.6.linux-amd64.tar.gz -o /tmp/go.tar.gz
+          tar -C /usr/local -xzf /tmp/go.tar.gz
+          echo "export PATH=/usr/local/go/bin:$PATH" >> /etc/profile.d/golang.sh
+          ln -sf /usr/local/go/bin/go /usr/local/bin/go
+          ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
+          go version
 
       - name: Generate protobuf
         run: |
