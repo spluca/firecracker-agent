@@ -94,6 +94,8 @@ jobs:
         run: go mod download
 
       - name: Run unit tests
+        env:
+          CGO_ENABLED: "1"
         run: |
           go test -v -race -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out | tail -1
