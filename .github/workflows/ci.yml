@@ -229,10 +229,11 @@ jobs:
             --go-grpc_out=. --go-grpc_opt=paths=source_relative \
             api/proto/firecracker/v1/firecracker.proto
 
+      - name: Vendor dependencies
+        run: go mod vendor
+
       - name: Build Debian package
         run: |
-          export GOPATH="$PWD/go"
-          go mod download
           dpkg-buildpackage -us -uc -b
           mkdir -p packages
           mv ../*.deb packages/ || true
