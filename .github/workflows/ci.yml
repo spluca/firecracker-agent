@@ -33,6 +33,19 @@ jobs:
           go-version: "1.25"
           cache: true
 
+      - name: Install protoc
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+      - name: Generate protobuf
+        run: |
+          protoc --go_out=. --go_opt=paths=source_relative \
+            --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+            api/proto/firecracker/v1/firecracker.proto
+
       - name: Check formatting
         run: |
           output=$(gofmt -l .)
@@ -67,7 +80,15 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq qemu-utils
+          sudo apt-get install -y -qq qemu-utils protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+      - name: Generate protobuf
+        run: |
+          protoc --go_out=. --go_opt=paths=source_relative \
+            --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+            api/proto/firecracker/v1/firecracker.proto
 
       - name: Download Go modules
         run: go mod download
@@ -103,7 +124,15 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq qemu-utils iproute2 iptables bridge-utils
+          sudo apt-get install -y -qq qemu-utils iproute2 iptables bridge-utils protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+      - name: Generate protobuf
+        run: |
+          protoc --go_out=. --go_opt=paths=source_relative \
+            --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+            api/proto/firecracker/v1/firecracker.proto
 
       - name: Download Go modules
         run: go mod download
